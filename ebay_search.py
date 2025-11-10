@@ -284,140 +284,138 @@ def display_rainforest_results(results: Dict):
 # ==============================================================================
 # UPDATED main() Function
 # ==============================================================================
-def main():
-    """Main function to run the eBay and Amazon search."""
-    print("="*80)
-    print("eBay & Amazon AI-Powered Product Search")
-    print("="*80)
+# def main():
+#     """Main function to run the eBay and Amazon search."""
+#     print("="*80)
+#     print("eBay & Amazon AI-Powered Product Search")
+#     print("="*80)
     
-    # --- 1. eBay Setup ---
-    if not EBAY_CLIENT_ID or not EBAY_CLIENT_SECRET:
-        print("✗ Error: eBay Client ID and Client Secret not found in .env file.")
-        return
-    ebay = eBaySearch(EBAY_CLIENT_ID, EBAY_CLIENT_SECRET)
-    print("\nAuthenticating with eBay API...")
-    if not ebay.get_access_token():
-        print("✗ Failed to authenticate with eBay. Please check your credentials.")
-        return
+#     # --- 1. eBay Setup ---
+#     if not EBAY_CLIENT_ID or not EBAY_CLIENT_SECRET:
+#         print("✗ Error: eBay Client ID and Client Secret not found in .env file.")
+#         return
+#     ebay = eBaySearch(EBAY_CLIENT_ID, EBAY_CLIENT_SECRET)
+#     print("\nAuthenticating with eBay API...")
+#     if not ebay.get_access_token():
+#         print("✗ Failed to authenticate with eBay. Please check your credentials.")
+#         return
         
-    # --- 2. Amazon Setup ---
-    if not RAINFOREST_API_KEY:
-        print("✗ Error: RAINFOREST_API_KEY not found in .env file.")
-        print("   Please add it to your .env file.")
-        return
+#     # --- 2. Amazon Setup ---
+#     if not RAINFOREST_API_KEY:
+#         print("✗ Error: RAINFOREST_API_KEY not found in .env file.")
+#         print("   Please add it to your .env file.")
+#         return
 
-    amazon = RainforestSearch(RAINFOREST_API_KEY)
-    print("✓ Amazon (Rainforest) API credentials loaded.")
+#     amazon = RainforestSearch(RAINFOREST_API_KEY)
+#     print("✓ Amazon (Rainforest) API credentials loaded.")
         
-    # --- 3. AI Setup (CHANGED FOR OPENROUTER) ---
-    if not OPENROUTER_API_KEY:
-        print("✗ Error: OPENROUTER_API_KEY not found in .env file.")
-        return
+#     # --- 3. AI Setup (CHANGED FOR OPENROUTER) ---
+#     if not OPENROUTER_API_KEY:
+#         print("✗ Error: OPENROUTER_API_KEY not found in .env file.")
+#         return
         
-    try:
-        # This is the new OpenAI client, configured for OpenRouter
-        client = OpenAI(
-            base_url="https://openrouter.ai/api/v1",
-            api_key=OPENROUTER_API_KEY,
-            default_headers={
-                "HTTP-Referer": "http://localhost", # Optional, but good practice
-                "X-Title": "eBay-Amazon-Search"     # Optional, but good practice
-            },
-        )
-        print("✓ Successfully configured AI with OpenRouter")
-    except Exception as e:
-        print(f"✗ Error configuring OpenRouter client: {e}")
-        return
+#     try:
+#         # This is the new OpenAI client, configured for OpenRouter
+#         client = OpenAI(
+#             base_url="https://openrouter.ai/api/v1",
+#             api_key=OPENROUTER_API_KEY,
+#             default_headers={
+#                 "HTTP-Referer": "http://localhost", # Optional, but good practice
+#                 "X-Title": "eBay-Amazon-Search"     # Optional, but good practice
+#             },
+#         )
+#         print("✓ Successfully configured AI with OpenRouter")
+#     except Exception as e:
+#         print(f"✗ Error configuring OpenRouter client: {e}")
+#         return
 
-    # --- 4. Main Search Loop ---
-    while True:
-        print("\n" + "="*80)
+#     # --- 4. Main Search Loop ---
+#     while True:
+#         print("\n" + "="*80)
         
-        system_prompt = (
-            "You are a helpful search assistant for eBay and Amazon. "
-            "Your goal is to ask the user 1-2 follow-up questions to get key details "
-            "(like model, color, size, condition, storage, or budget) to refine their search. "
-            "Once you have enough details, your *very last* message must ONLY be the "
-            "final search query, prefixed with 'FINAL_QUERY:'. "
-            "For example: 'FINAL_QUERY: iPhone 15 Pro Max 256GB new'"
-        )
+#         system_prompt = (
+#             "You are a helpful search assistant for eBay and Amazon. "
+#             "Your goal is to ask the user 1-2 follow-up questions to get key details "
+#             "(like model, color, size, condition, storage, or budget) to refine their search. "
+#             "Once you have enough details, your *very last* message must ONLY be the "
+#             "final search query, prefixed with 'FINAL_QUERY:'. "
+#             "For example: 'FINAL_QUERY: iPhone 15 Pro Max 256GB new'"
+#         )
         
-        # --- CHANGED: Manual Chat History ---
-        # We must now manually keep track of the conversation
-        chat_history = [
-            {"role": "system", "content": system_prompt},
-            {"role": "assistant", "content": "OK, I understand. I will help you find the best deals on eBay and Amazon. What are you looking for today?"}
-        ]
+#         # --- CHANGED: Manual Chat History ---
+#         # We must now manually keep track of the conversation
+#         chat_history = [
+#             {"role": "system", "content": system_prompt},
+#             {"role": "assistant", "content": "OK, I understand. I will help you find the best deals on eBay and Amazon. What are you looking for today?"}
+#         ]
 
-        print("AI: OK, I understand. I will help you find the best deals on eBay and Amazon.")
-        user_input = input("AI: What are you looking for today?\nYou: ").strip()
+#         print("AI: OK, I understand. I will help you find the best deals on eBay and Amazon.")
+#         user_input = input("AI: What are you looking for today?\nYou: ").strip()
 
-        if user_input.lower() in ['quit', 'exit', 'q']:
-            print("Goodbye!")
-            break
+#         if user_input.lower() in ['quit', 'exit', 'q']:
+#             print("Goodbye!")
+#             break
 
-        final_query = ""
+#         final_query = ""
 
-        # --- 5. Inner AI Chat Loop (CHANGED FOR OPENAI SYNTAX) ---
-        while True:
-            try:
-                # Add the user's last message to the history
-                chat_history.append({"role": "user", "content": user_input})
+#         # --- 5. Inner AI Chat Loop (CHANGED FOR OPENAI SYNTAX) ---
+#         while True:
+#             try:
+#                 # Add the user's last message to the history
+#                 chat_history.append({"role": "user", "content": user_input})
                 
-                # Make the API call to OpenRouter
-                response = client.chat.completions.create(
-                    model="google/gemini-2.5-flash-lite",  # Use an OpenRouter model name. This one is fast and cheap.
-                    messages=chat_history
-                )
+#                 # Make the API call to OpenRouter
+#                 response = client.chat.completions.create(
+#                     model="google/gemini-2.5-flash-lite",  # Use an OpenRouter model name. This one is fast and cheap.
+#                     messages=chat_history
+#                 )
                 
-                ai_message = response.choices[0].message.content.strip()
+#                 ai_message = response.choices[0].message.content.strip()
                 
-                # Add the AI's response to the history
-                chat_history.append({"role": "assistant", "content": ai_message})
+#                 # Add the AI's response to the history
+#                 chat_history.append({"role": "assistant", "content": ai_message})
                 
-                # Check if the AI has decided on a final query
-                if ai_message.startswith("FINAL_QUERY:"):
-                    final_query = ai_message.replace("FINAL_QUERY:", "").strip()
-                    print(f"\nAI: Great! I will search both eBay and Amazon for: '{final_query}'")
-                    break 
+#                 # Check if the AI has decided on a final query
+#                 if ai_message.startswith("FINAL_QUERY:"):
+#                     final_query = ai_message.replace("FINAL_QUERY:", "").strip()
+#                     print(f"\nAI: Great! I will search both eBay and Amazon for: '{final_query}'")
+#                     break 
                 
-                # If not a final query, just print the AI's question
-                print(f"\nAI: {ai_message}")
+#                 # If not a final query, just print the AI's question
+#                 print(f"\nAI: {ai_message}")
                 
-                # Get the user's answer
-                user_input = input("You: ").strip()
-                if user_input.lower() in ['quit', 'exit', 'q']:
-                    break
+#                 # Get the user's answer
+#                 user_input = input("You: ").strip()
+#                 if user_input.lower() in ['quit', 'exit', 'q']:
+#                     break
             
-            except Exception as e:
-                print(f"✗ Error communicating with OpenRouter: {e}")
-                break 
+#             except Exception as e:
+#                 print(f"✗ Error communicating with OpenRouter: {e}")
+#                 break 
 
-        if final_query:
-            # --- 6. Search Both APIs (No changes here) ---
-            print(f"\nSearching eBay for: '{final_query}'...")
-            ebay_results = ebay.search_items(final_query, limit=4)
+#         if final_query:
+#             # --- 6. Search Both APIs (No changes here) ---
+#             print(f"\nSearching eBay for: '{final_query}'...")
+#             ebay_results = ebay.search_items(final_query, limit=4)
             
-            amazon_results = amazon.search_items(final_query)
-            # Add this debug print if you're still testing the Amazon parser:
-            # print(f"DEBUG: Amazon raw data: {amazon_results}") 
+#             amazon_results = amazon.search_items(final_query)
+#             # Add this debug print if you're still testing the Amazon parser:
+#             # print(f"DEBUG: Amazon raw data: {amazon_results}") 
             
-            # --- Display All Results (Using the fix from last time) ---
-            if ebay_results:
-             ebay.display_results(ebay_results)
-            else:
-             print("✗ No eBay results found or an error occurred.")
+#             # --- Display All Results (Using the fix from last time) ---
+#             if ebay_results:
+#              ebay.display_results(ebay_results)
+#             else:
+#              print("✗ No eBay results found or an error occurred.")
 
-            if amazon_results is not None: # Check for None (an error)
-                 display_rainforest_results(amazon_results) # <-- CHANGED function name
-            else:
-                print("✗ An Amazon (Rainforest) API error occurred.")
+#             if amazon_results is not None: # Check for None (an error)
+#                  display_rainforest_results(amazon_results) # <-- CHANGED function name
+#             else:
+#                 print("✗ An Amazon (Rainforest) API error occurred.")
         
-        # Check if user wants to search again
-        continue_search = input("\nSearch again? (y/n): ").strip().lower()
-        if continue_search not in ['y', 'yes']:
-            print("Goodbye!")
-            break
+#         # Check if user wants to search again
+#         continue_search = input("\nSearch again? (y/n): ").strip().lower()
+#         if continue_search not in ['y', 'yes']:
+#             print("Goodbye!")
+#             break
 
-if __name__ == "__main__":
-    main()

@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Product Search</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="chat-container">
+        <div id="chat-window" class="chat-window">
+            </div>
+        <form id="chat-form" class="chat-form">
+            <input type="text" id="chat-input" placeholder="Search for a product..." autocomplete="off" required>
+            <button type="submit">Send</button>
+        </form>
+    </div>
+
+    <div id="results-container" class="results-container">
+        </div>
+
+    <script>
+        const chatWindow = document.getElementById('chat-window');
+        const chatForm = document.getElementById('chat-form');
+        const chatInput = document.getElementById('chat-input');
+        const resultsContainer = document.getElementById('results-container');
+        
+        let chatHistory = [];
+        const API_URL = 'http://127.0.0.1:8000/chat';
+
+        // 1. Handle form submission
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const message = chatInput.value.trim();
+            if (!message) return;
+
+            displayMessage('user', message);
+            chatInput.value = '';
+            await sendMessageToApi(message);
+        });
+
+        // 2. Send message to backend API
+        async function sendMessageToApi(message) {
+            displayMessage('assistant', '...', true); // Show "thinking..."
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: message,
+                        history: chatHistory
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                
+                // Update chat history from the response
+                chatHistory = data.history;
+
+                // Remove the "thinking..." message
+                chatWindow.removeChild(chatWindow.lastChild);
+
+                // Display the AI's actual message
+                displayMessage('assistant', data.message);
+
+                // If we got results, display them
+                if (data.type === 'results' && data.results) {
+                    displayResults(data.results);
+                } else {
+                    // If it's just a question, clear old results
+                    resultsContainer.innerHTML = '';
+                }
+
+            } catch (error) {
+                console.error('Error fetching from API:', error);
+                chatWindow.removeChild(chatWindow.lastChild);
+                displayMessage('assistant', 'Sorry, I hit an error. Please try again.');
+            }
+        }
+
+        // 3. Display a message in the chat window
+        function displayMessage(sender, message, isThinking = false) {
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('chat-message', `${sender}-message`);
+            if (isThinking) {
+                messageElement.classList.add('thinking');
+            }
+            messageElement.innerText = message;
+            chatWindow.appendChild(messageElement);
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+        }
+
+        // 4. Display the product results
+        function displayResults(results) {
+            resultsContainer.innerHTML = ''; // Clear old results
+
+            if (results.ebay && results.ebay.length > 0) {
+                resultsContainer.innerHTML += '<h2>eBay Results</h2>';
+                const ebayGrid = document.createElement('div');
+                ebayGrid.className = 'results-grid';
+                results.ebay.forEach(item => {
+                    ebayGrid.appendChild(createProductCard(item, 'ebay'));
+                });
+                resultsContainer.appendChild(ebayGrid);
+            }
+
+            if (results.amazon && results.amazon.length > 0) {
+                resultsContainer.innerHTML += '<h2>Amazon Results</h2>';
+                const amazonGrid = document.createElement('div');
+                amazonGrid.className = 'results-grid';
+                results.amazon.forEach(item => {
+                    amazonGrid.appendChild(createProductCard(item, 'amazon'));
+                });
+                resultsContainer.appendChild(amazonGrid);
+            }
+        }
+
+        // 5. Create a single product card
+        function createProductCard(item, sourceType) {
+            const card = document.createElement('a');
+            card.className = 'product-card';
+            card.href = item.url;
+            card.target = '_blank'; // Open in new tab
+
+            const detail = (sourceType === 'ebay') ? item.condition : item.rating;
+
+            card.innerHTML = `
+                <div class="product-image-container">
+                    <img src="${item.image_url}" alt="${item.title}" class="product-image">
+                </div>
+                <div class="product-info">
+                    <p class="product-title">${item.title}</p>
+                    <p class="product-price">${item.price}</p>
+                    <p class="product-detail">${detail || ''}</p>
+                </div>
+            `;
+            return card;
+        }
+
+        // Start the conversation
+        sendMessageToApi(""); // Send an empty message to get the welcome
+    </script>
+</body>
+</html>
