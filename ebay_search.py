@@ -10,16 +10,19 @@ import json
 import base64
 import os
 from typing import Dict, List, Optional
-import google.generativeai as genai
+# import google.generativeai as genai
+from openai import OpenAI
 from dotenv import load_dotenv
 
 # --- Load All API Keys from .env file ---
 load_dotenv()
 EBAY_CLIENT_ID = os.environ.get("EBAY_CLIENT_ID")
 EBAY_CLIENT_SECRET = os.environ.get("EBAY_CLIENT_SECRET")
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-AMAZON_API_KEY = os.environ.get("AMAZON_API_KEY")
-AMAZON_API_ENDPOINT = os.environ.get("AMAZON_API_ENDPOINT") # The POST URL for your Bright Data scraper
+# GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
+##AMAZON_API_KEY = os.environ.get("AMAZON_API_KEY")
+#AMAZON_API_ENDPOINT = os.environ.get("AMAZON_API_ENDPOINT") # The POST URL for your Bright Data scraper
+RAINFOREST_API_KEY = os.environ.get("RAINFOREST_API_KEY")
 
 # ==============================================================================
 # eBaySearch CLASS (No changes here)
@@ -144,76 +147,118 @@ class eBaySearch:
 # ==============================================================================
 # NEW AmazonSearch CLASS
 # ==============================================================================
-class AmazonSearch:
-    """Class to handle Amazon (Bright Data) API searches."""
+# ==============================================================================
+# NEW RainforestSearch CLASS
+# ==============================================================================
+class RainforestSearch:
+    """Class to handle Rainforest API (Amazon) searches."""
     
-    def __init__(self, api_key: str, api_endpoint: str):
+    def __init__(self, api_key: str):
         self.api_key = api_key
-        self.api_endpoint = api_endpoint # This is the POST URL from your dashboard
+        self.base_url = "https://api.rainforestapi.com/request"
         
-    def search_items(self, query: str) -> Optional[List[Dict]]:
+    def search_items(self, query: str) -> Optional[Dict]:
         """
-        Search for items on Amazon using Bright Data.
-        Assumes a SYNCHRONOUS (blocking) scraper.
+        Search for items on Amazon using Rainforest API.
         """
-        if not self.api_key or not self.api_endpoint:
-            print("✗ Error: AMAZON_API_KEY or AMAZON_API_ENDPOINT not found in .env file.")
+        if not self.api_key:
+            print("✗ Error: RAINFOREST_API_KEY not found in .env file.")
             return None
             
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
+        # These are the parameters for a Rainforest "search" request
+        params = {
+            "api_key": self.api_key,
+            "type": "search",
+            "amazon_domain": "amazon.com",
+            "search_term": query
         }
         
-        # This payload format is based on the "Collect by URL" example.
-        # You MUST check the "Discover by keyword" dashboard for the correct 'input' format.
-        # It is probably {"input": {"keyword": query, "country": "US"}}
-        data = {
-            "input": {
-                "keyword": query,
-                "country": "US" # Assuming US, you can change this
-            }
-        }
-        
-        print(f"\nSearching Amazon for: '{query}'...")
+        print(f"\nSearching Amazon (via Rainforest) for: '{query}'...")
         
         try:
-            # Make sure your scraper is set to SYNCHRONOUS
-            response = requests.post(self.api_endpoint, headers=headers, json=data)
-            response.raise_for_status()
+            response = requests.get(self.base_url, params=params)
+            response.raise_for_status() # Raises an error for bad responses (4xx or 5xx)
             
-            # A sync response should return the list of products directly
+            # Return the JSON response
             return response.json() 
             
         except requests.exceptions.RequestException as e:
-            print(f"✗ Error searching Amazon: {e}")
+            print(f"✗ Error searching Amazon (Rainforest): {e}")
             if hasattr(e, 'response') and e.response is not None:
-                # Print the first 500 chars of the error
                 print(f"Response: {e.response.text[:500]}...")
-            print("------------------------------------------------------------------")
-            print("✗ HINT 1: Did you set the scraper to SYNCHRONOUS mode in Bright Data?")
-            print("✗ HINT 2: Is your AMAZON_API_ENDPOINT in the .env file correct?")
-            print("------------------------------------------------------------------")
             return None
-
 # ==============================================================================
 # NEW Amazon Display Function
 # ==============================================================================
-def display_amazon_results(results: List[Dict]):
+# def display_amazon_results(results: List[Dict]):
+#     """
+#     Display Amazon search results in a formatted way.
+#     NOTE: This is a BEST-GUESS parser. You MUST check the JSON output
+#     from a real search and update the keys (e.g., 'title', 'price_string').
+#     """
+#     if not results:
+#         print("\nNo Amazon results to display.")
+#         return
+    
+#     # Slice to get max 4 results
+#     results_to_display = results[:4]
+    
+#     print(f"\n{'='*80}")
+#     print(f"Found {len(results)} item(s) on Amazon")
+#     print(f"Displaying {len(results_to_display)} result(s):")
+#     print(f"{'='*80}\n")
+    
+#     if not results_to_display:
+#         print("No Amazon items found matching your search criteria.")
+#         return
+
+#     print("!!! WARNING: Amazon field names are a guess. You may need to edit 'display_amazon_results' in the code. !!!\n")
+    
+#     for idx, item in enumerate(results_to_display, 1):
+#         # --- YOU MUST UPDATE THESE KEYS ---
+#         # Run a search, look at the JSON, and find the *real* keys
+#         title = item.get("title", "N/A (Check key 'title')")
+#         price_str = item.get("price_string", "N/A (Check key 'price_string')")
+        
+#         if price_str == "N/A (Check key 'price_string')":
+#              price_str = f"${item.get('price', 'N/A (Check key price)')}" # Fallback
+        
+#         url = item.get("url", "N/A (Check key 'url')")
+#         if not url.startswith("http"):
+#             url = f"https://www.amazon.com{url}"
+        
+#         rating = item.get("rating", "N/A")
+#         reviews_count = item.get("reviews_count", "N/A")
+#         # --- END OF KEYS TO UPDATE ---
+        
+#         print(f"{idx}. {title}")
+#         print(f"   Price: {price_str}")
+#         print(f"   Rating: {rating} stars ({reviews_count} reviews)")
+#         print(f"   URL: {url}")
+#         print(f"   {'-'*78}")
+
+# ==============================================================================
+# NEW Rainforest Display Function
+# ==============================================================================
+def display_rainforest_results(results: Dict):
     """
-    Display Amazon search results in a formatted way.
-    NOTE: This is a BEST-GUESS parser. You MUST check the JSON output
-    from a real search and update the keys (e.g., 'title', 'price_string').
+    Display Rainforest (Amazon) search results in a formatted way.
+    
+    NOTE: This parser is based on standard Rainforest "search" results.
+    You may still need to add your debug print line to confirm keys.
     """
     if not results:
         print("\nNo Amazon results to display.")
         return
+
+    # Rainforest puts search results in a 'search_results' list
+    search_results = results.get("search_results", [])
     
     # Slice to get max 4 results
-    results_to_display = results[:4]
+    results_to_display = search_results[:4]
     
     print(f"\n{'='*80}")
-    print(f"Found {len(results)} item(s) on Amazon")
+    print(f"Found {len(search_results)} item(s) on Amazon (via Rainforest)")
     print(f"Displaying {len(results_to_display)} result(s):")
     print(f"{'='*80}\n")
     
@@ -221,31 +266,20 @@ def display_amazon_results(results: List[Dict]):
         print("No Amazon items found matching your search criteria.")
         return
 
-    print("!!! WARNING: Amazon field names are a guess. You may need to edit 'display_amazon_results' in the code. !!!\n")
-    
     for idx, item in enumerate(results_to_display, 1):
-        # --- YOU MUST UPDATE THESE KEYS ---
-        # Run a search, look at the JSON, and find the *real* keys
-        title = item.get("title", "N/A (Check key 'title')")
-        price_str = item.get("price_string", "N/A (Check key 'price_string')")
-        
-        if price_str == "N/A (Check key 'price_string')":
-             price_str = f"${item.get('price', 'N/A (Check key price)')}" # Fallback
-        
-        url = item.get("url", "N/A (Check key 'url')")
-        if not url.startswith("http"):
-            url = f"https://www.amazon.com{url}"
-        
+        # --- These keys are standard for Rainforest ---
+        title = item.get("title", "N/A")
+        price = item.get("price", {}).get("raw", "N/A") # Get the 'raw' price string, e.g., "$19.99"
+        link = item.get("link", "N/A")
         rating = item.get("rating", "N/A")
-        reviews_count = item.get("reviews_count", "N/A")
-        # --- END OF KEYS TO UPDATE ---
+        ratings_total = item.get("ratings_total", 0)
+        # --- End of keys ---
         
         print(f"{idx}. {title}")
-        print(f"   Price: {price_str}")
-        print(f"   Rating: {rating} stars ({reviews_count} reviews)")
-        print(f"   URL: {url}")
+        print(f"   Price: {price}")
+        print(f"   Rating: {rating} stars ({ratings_total} reviews)")
+        print(f"   URL: {link}")
         print(f"   {'-'*78}")
-
 
 # ==============================================================================
 # UPDATED main() Function
@@ -260,7 +294,6 @@ def main():
     if not EBAY_CLIENT_ID or not EBAY_CLIENT_SECRET:
         print("✗ Error: eBay Client ID and Client Secret not found in .env file.")
         return
-        
     ebay = eBaySearch(EBAY_CLIENT_ID, EBAY_CLIENT_SECRET)
     print("\nAuthenticating with eBay API...")
     if not ebay.get_access_token():
@@ -268,27 +301,32 @@ def main():
         return
         
     # --- 2. Amazon Setup ---
-    if not AMAZON_API_KEY or not AMAZON_API_ENDPOINT:
-        print("✗ Error: AMAZON_API_KEY or AMAZON_API_ENDPOINT not found in .env file.")
-        print("   Please add them to your .env file.")
+    if not RAINFOREST_API_KEY:
+        print("✗ Error: RAINFOREST_API_KEY not found in .env file.")
+        print("   Please add it to your .env file.")
         return
-    
-    amazon = AmazonSearch(AMAZON_API_KEY, AMAZON_API_ENDPOINT)
-    print("✓ Amazon API credentials loaded.")
+
+    amazon = RainforestSearch(RAINFOREST_API_KEY)
+    print("✓ Amazon (Rainforest) API credentials loaded.")
         
-    # --- 3. Gemini AI Setup ---
-    if not GEMINI_API_KEY:
-        print("✗ Error: GEMINI_API_KEY not found in .env file.")
+    # --- 3. AI Setup (CHANGED FOR OPENROUTER) ---
+    if not OPENROUTER_API_KEY:
+        print("✗ Error: OPENROUTER_API_KEY not found in .env file.")
         return
         
     try:
-        genai.configure(api_key=GEMINI_API_KEY)
-        # Using a model that is likely to work on the free tier.
-        # If this fails, run `check_models.py` to find a valid model name.
-        model = genai.GenerativeModel('gemini-2.5-pro') 
-        print("✓ Successfully configured Gemini AI")
+        # This is the new OpenAI client, configured for OpenRouter
+        client = OpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=OPENROUTER_API_KEY,
+            default_headers={
+                "HTTP-Referer": "http://localhost", # Optional, but good practice
+                "X-Title": "eBay-Amazon-Search"     # Optional, but good practice
+            },
+        )
+        print("✓ Successfully configured AI with OpenRouter")
     except Exception as e:
-        print(f"✗ Error configuring Gemini: {e}")
+        print(f"✗ Error configuring OpenRouter client: {e}")
         return
 
     # --- 4. Main Search Loop ---
@@ -304,13 +342,14 @@ def main():
             "For example: 'FINAL_QUERY: iPhone 15 Pro Max 256GB new'"
         )
         
-        chat = model.start_chat(history=[
-            {'role': 'user', 'parts': [system_prompt]},
-            {'role': 'model', 'parts': ["OK, I understand. I will help you find the best deals on eBay and Amazon. What are you looking for today?"]}
-        ])
+        # --- CHANGED: Manual Chat History ---
+        # We must now manually keep track of the conversation
+        chat_history = [
+            {"role": "system", "content": system_prompt},
+            {"role": "assistant", "content": "OK, I understand. I will help you find the best deals on eBay and Amazon. What are you looking for today?"}
+        ]
 
         print("AI: OK, I understand. I will help you find the best deals on eBay and Amazon.")
-        
         user_input = input("AI: What are you looking for today?\nYou: ").strip()
 
         if user_input.lower() in ['quit', 'exit', 'q']:
@@ -319,48 +358,60 @@ def main():
 
         final_query = ""
 
-        # --- 5. Inner AI Chat Loop ---
+        # --- 5. Inner AI Chat Loop (CHANGED FOR OPENAI SYNTAX) ---
         while True:
             try:
-                response = chat.send_message(user_input)
-                ai_message = response.text.strip()
+                # Add the user's last message to the history
+                chat_history.append({"role": "user", "content": user_input})
                 
+                # Make the API call to OpenRouter
+                response = client.chat.completions.create(
+                    model="google/gemini-2.5-flash-lite",  # Use an OpenRouter model name. This one is fast and cheap.
+                    messages=chat_history
+                )
+                
+                ai_message = response.choices[0].message.content.strip()
+                
+                # Add the AI's response to the history
+                chat_history.append({"role": "assistant", "content": ai_message})
+                
+                # Check if the AI has decided on a final query
                 if ai_message.startswith("FINAL_QUERY:"):
                     final_query = ai_message.replace("FINAL_QUERY:", "").strip()
                     print(f"\nAI: Great! I will search both eBay and Amazon for: '{final_query}'")
                     break 
                 
+                # If not a final query, just print the AI's question
                 print(f"\nAI: {ai_message}")
+                
+                # Get the user's answer
                 user_input = input("You: ").strip()
                 if user_input.lower() in ['quit', 'exit', 'q']:
                     break
             
             except Exception as e:
-                print(f"✗ Error communicating with Gemini: {e}")
+                print(f"✗ Error communicating with OpenRouter: {e}")
                 break 
 
         if final_query:
-            # --- 6. Search Both APIs ---
-            # We no longer ask for a limit, it's fixed at 4.
-            
-            # --- Search eBay ---
+            # --- 6. Search Both APIs (No changes here) ---
             print(f"\nSearching eBay for: '{final_query}'...")
             ebay_results = ebay.search_items(final_query, limit=4)
             
-            # --- Search Amazon ---
             amazon_results = amazon.search_items(final_query)
-            print(f"DEBUG: Amazon raw data: {amazon_results}") # <-- ADD THIS DEBUG LINE
+            # Add this debug print if you're still testing the Amazon parser:
+            # print(f"DEBUG: Amazon raw data: {amazon_results}") 
             
-            # --- Display All Results ---
+            # --- Display All Results (Using the fix from last time) ---
             if ebay_results:
-                ebay.display_results(ebay_results)
+             ebay.display_results(ebay_results)
             else:
-                print("✗ No eBay results found or an error occurred.")
-            
-            if amazon_results is not None:
-                display_amazon_results(amazon_results)
+             print("✗ No eBay results found or an error occurred.")
+
+            if amazon_results is not None: # Check for None (an error)
+                 display_rainforest_results(amazon_results) # <-- CHANGED function name
             else:
-                print("✗ No Amazon results found or an error occurred.")
+                print("✗ An Amazon (Rainforest) API error occurred.")
         
         # Check if user wants to search again
         continue_search = input("\nSearch again? (y/n): ").strip().lower()
