@@ -6,6 +6,7 @@ Connects the frontend to the search logic.
 
 import os
 import uvicorn
+from datetime import datetime
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,6 +16,7 @@ from openai import OpenAI
 
 # Import your existing classes from your script
 from ebay_search import eBaySearch, RainforestSearch
+from research_agent import ResearchAgent
 
 # --- Load API Keys ---
 from dotenv import load_dotenv
@@ -24,6 +26,7 @@ EBAY_CLIENT_ID = os.environ.get("EBAY_CLIENT_ID")
 EBAY_CLIENT_SECRET = os.environ.get("EBAY_CLIENT_SECRET")
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
 RAINFOREST_API_KEY = os.environ.get("RAINFOREST_API_KEY")
+SERPER_API_KEY = os.environ.get("SERPER_API_KEY")
 
 # --- Initialize the App ---
 app = FastAPI()
@@ -58,6 +61,15 @@ ai_client = OpenAI(
     },
 )
 
+# Initialize Research Agent (optional - only if API key is provided)
+research_agent = None
+if SERPER_API_KEY:
+    print("Initializing Research Agent with web search...")
+    research_agent = ResearchAgent(OPENROUTER_API_KEY, SERPER_API_KEY)
+else:
+    print("⚠️  SERPER_API_KEY not found - Research Agent disabled")
+    print("   Get a free key at https://serper.dev for product verification")
+
 # --- Define Request/Response Models ---
 class ChatRequest(BaseModel):
     message: str
@@ -75,15 +87,19 @@ class ChatResponse(BaseModel):
 async def handle_chat(request: ChatRequest):
     
     # 1. Define prompts
+    current_date = datetime.now().strftime("%B %d, %Y")
+    
     system_prompt = (
-        "You are a helpful search assistant for eBay and Amazon. "
+        f"You are a helpful search assistant for eBay and Amazon. Today's date is {current_date}. "
         "Your goal is to ask the user 1-2 follow-up questions to get key details "
         "(like model, color, size, condition, storage, or budget) to refine their search. "
         "Once you have enough details, your *very last* message must ONLY be the "
         "final search query, prefixed with 'FINAL_QUERY:'. "
-        "For example: 'FINAL_QUERY: iPhone 15 Pro Max 256GB new'"
+        "For example: 'FINAL_QUERY: iPhone 15 Pro Max 256GB new'. "
+        "IMPORTANT: Do not make assumptions about product availability. If a user asks for a product, "
+        "assume it exists and help them search for it. Focus on gathering search details, not questioning whether products exist."
     )
-    welcome_message = "OK, I understand. I will help you find the best deals on eBay and Amazon. What are you looking for today?"
+    welcome_message = "Greetings, I will help you find the best deals on eBay and Amazon. What are you looking for today?"
     
     # --- 2. NEW FIX: Handle the initial "hello" from the frontend ---
     if not request.message and not request.history:
@@ -105,7 +121,7 @@ async def handle_chat(request: ChatRequest):
     # 4. Call AI
     try:
         response = ai_client.chat.completions.create(
-            model="google/gemini-2.5-flash-lite",
+            model="google/gemini-2.5-flash-lite",  # Upgraded from flash-lite for better accuracy
             messages=chat_history
         )
         ai_message = response.choices[0].message.content.strip()
@@ -123,8 +139,36 @@ async def handle_chat(request: ChatRequest):
     if ai_message.startswith("FINAL_QUERY:"):
         final_query = ai_message.replace("FINAL_QUERY:", "").strip()
         
+        # --- RESEARCH AGENT: Verify product exists before searching ---
+        if research_agent:
+            print(f"🔍 Research Agent: Verifying '{final_query}' before searching...")
+            verification = research_agent.verify_product(final_query)
+            
+            release_status = verification.get('release_status', 'unknown')
+            print(f"   Release Status: {release_status}")
+            
+            # If product doesn't exist with high confidence, inform the user
+            if not verification['exists'] and verification['confidence'] in ['high', 'medium']:
+                print(f"⚠️  Product verification failed: {verification['info']}")
+                
+                # Provide helpful message based on release status
+                if release_status == 'upcoming':
+                    message = f"The '{final_query}' hasn't been released yet. {verification['info']} Would you like to search for a currently available alternative?"
+                elif release_status == 'rumored':
+                    message = f"The '{final_query}' is only rumored and not officially confirmed. {verification['info']} Would you like to search anyway, or look for something else?"
+                else:
+                    message = f"I couldn't find reliable information about '{final_query}'. {verification['info']} Would you like to search for something else?"
+                
+                return ChatResponse(
+                    type="question",
+                    message=message,
+                    history=chat_history
+                )
+            else:
+                print(f"✓ Product verified: {verification['info']}")
+        
         # --- A. It's a Final Query: Run searches ---
-        print(f"AI Final Query: {final_query}")
+        print(f"🔎 Searching eBay and Amazon for: {final_query}")
         ebay_data = ebay.search_items(final_query, limit=4)
         amazon_data = amazon.search_items(final_query)
         
@@ -139,6 +183,10 @@ async def handle_chat(request: ChatRequest):
                     "url": item.get("itemWebUrl"),
                     "image_url": item.get("image", {}).get("imageUrl")
                 })
+            print(f"✓ Found {len(ebay_results)} eBay results")
+        else:
+            print(f"⚠️  eBay search returned no results or error: {ebay_data}")
+            ebay_results = []
         
         # --- Parse Amazon (Rainforest) Results ---
         amazon_results = []
