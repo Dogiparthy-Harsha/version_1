@@ -30,18 +30,31 @@ See [`ARCHITECTURE.md`](ARCHITECTURE.md) for detailed system design.
 
 ## 🚀 Quick Start
 
-### 1. Install Dependencies
+### 1. Install Backend Dependencies
 
 ```bash
 # Create virtual environment
 python3 -m venv venv
 source venv/bin/activate  # On Mac/Linux
 
-# Install packages
+# Install Python packages
 pip install -r requirements.txt
 ```
 
-### 2. Configure API Keys
+### 2. Install Frontend Dependencies
+
+```bash
+# Navigate to frontend directory
+cd frontend
+
+# Install Node packages
+npm install
+
+# Go back to root
+cd ..
+```
+
+### 3. Configure API Keys
 
 Create a `.env` file:
 
@@ -127,22 +140,22 @@ INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
 
 ---
 
-#### **Terminal 3: Frontend**
+#### **Terminal 3: React Frontend**
 
 ```bash
-# Navigate to project directory
-cd /path/to/version_1
+# Navigate to frontend directory
+cd /path/to/version_1/frontend
 
-# Activate virtual environment (optional for this one)
-source venv/bin/activate  # On Mac/Linux
-
-# Start frontend server
-python3 -m http.server 3000
+# Start React dev server
+npm run dev
 ```
 
 **Expected output:**
 ```
-Serving HTTP on :: port 3000 (http://[::]:3000/) ...
+VITE v7.2.4  ready in 334 ms
+
+➜  Local:   http://localhost:5173/
+➜  Network: use --host to expose
 ```
 
 **Keep this terminal running!** ✋
@@ -151,7 +164,7 @@ Serving HTTP on :: port 3000 (http://[::]:3000/) ...
 
 #### **Open Browser**
 
-Go to: **http://localhost:3000**
+Go to: **http://localhost:5173**
 
 Start chatting with the AI shopping assistant! 🛍️
 
@@ -205,8 +218,11 @@ Agent: "The 'Samsung S26 Ultra' hasn't been released yet.
 - **Python 3.13+**
 
 ### Frontend
-- **HTML/CSS/JavaScript** - Vanilla (no framework)
-- **Modern UI** - Clean, responsive design
+- **React** - Component-based UI library
+- **Vite** - Fast build tool and dev server
+- **Axios** - HTTP client for API calls
+- **React Markdown** - Markdown rendering in chat
+- **Modern CSS** - Dark theme with gradients and animations
 
 ### APIs
 - **eBay Browse API** - Product search
@@ -223,14 +239,22 @@ version_1/
 │   └── research_agent.py   # Product verification
 │
 ├── mcp_servers/             # MCP server implementations
-│   ├── research_server.py
-│   ├── ebay_server.py
-│   └── amazon_server.py
+│   ├── research_server.py  # Research agent HTTP server
+│   ├── ebay_server.py      # eBay search HTTP server
+│   └── amazon_server.py    # Amazon search HTTP server
+│
+├── frontend/                # React frontend
+│   ├── src/
+│   │   ├── App.jsx         # Main React component
+│   │   ├── App.css         # Component styles
+│   │   └── index.css       # Global styles
+│   ├── package.json        # Node dependencies
+│   └── vite.config.js      # Vite configuration
 │
 ├── api_mcp.py               # Main FastAPI backend (MCP)
-├── mcp_client.py            # MCP client manager
-├── index.html               # Frontend UI
-├── style.css                # Styling
+├── start_mcp_servers.sh     # MCP servers startup script
+├── requirements.txt         # Python dependencies
+├── .env                     # API keys (gitignored)
 │
 └── docs/                    # Documentation
     ├── README.md
