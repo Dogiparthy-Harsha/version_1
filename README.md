@@ -4,11 +4,15 @@ An intelligent shopping assistant that helps users find the best deals on eBay a
 
 ## 🌟 Features
 
+- ✅ **User Authentication** - Secure JWT-based login/register with bcrypt password hashing
+- ✅ **Chat History** - Persistent conversation history with SQLite database
+- ✅ **Multiple Conversations** - Sidebar to manage and switch between chats
 - ✅ **Conversational AI** - Natural language product search
 - ✅ **Multi-Agent System** - Independent agents for different tasks
 - ✅ **Product Verification** - Real-time web search to verify products exist
 - ✅ **Dual Marketplace** - Searches both eBay and Amazon simultaneously
 - ✅ **Smart Filtering** - Blocks unreleased/rumored products
+- ✅ **Results Persistence** - Search results saved with conversations
 - ✅ **MCP Protocol** - Industry-standard microservices architecture
 - ✅ **Date-Aware** - Knows current date for product availability
 - ✅ **Works with Any Product** - Electronics, clothes, furniture, etc.
@@ -80,7 +84,11 @@ RAINFOREST_API_KEY=your_rainforest_key
 - **eBay**: https://developer.ebay.com/
 - **Rainforest**: https://www.rainforestapi.com/
 
-### 3. Start the Application (3 Terminals Required)
+> **⚠️ IMPORTANT:** The `.env` file is **required** and **not included** in the repository for security reasons. You must create it manually with your own API keys before running the application.
+
+> **💾 Note:** The SQLite database (`app.db`) will be automatically created when you first run the backend. No manual database setup is required.
+
+### 4. Start the Application (3 Terminals Required)
 
 You need **3 separate terminal windows/tabs**, all with the virtual environment activated.
 
@@ -166,11 +174,21 @@ VITE v7.2.4  ready in 334 ms
 
 Go to: **http://localhost:5173**
 
+**First Time Setup:**
+1. You'll see a login screen
+2. Click "Register here" to create an account
+3. Enter a username and password (min 8 chars, must include uppercase, lowercase, number, and special character)
+4. After registration, you'll be automatically logged in
+
+**Returning Users:**
+- Simply login with your credentials
+- Your chat history will be preserved across sessions
+
 Start chatting with the AI shopping assistant! 🛍️
 
 ---
 
-### 4. Stopping the Application
+### 5. Stopping the Application
 
 Press `Ctrl+C` in each terminal to stop the servers.
 
