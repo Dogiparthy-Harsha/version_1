@@ -1,193 +1,244 @@
-# Multi-Agent Architecture Flow
+# AI Shopping Assistant - MCP Architecture
 
-## System Overview
+## 🏗️ System Architecture
+
+This project uses **Model Context Protocol (MCP)** for a microservices-based multi-agent architecture.
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         USER INTERFACE                          │
-│                        (index.html)                             │
-└────────────────────────┬────────────────────────────────────────┘
-                         │
+┌─────────────────────────────────────────────────────────────┐
+│                      Frontend (Browser)                      │
+│                       index.html + JS                        │
+└────────────────────────┬────────────────────────────────────┘
                          │ HTTP POST /chat
                          ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    MAIN CONVERSATIONAL AGENT                    │
-│                         (api.py)                                │
-│                                                                 │
-│  1. Receives user message                                       │
-│  2. Asks clarifying questions (model, color, budget, etc.)      │
-│  3. Generates FINAL_QUERY when ready                            │
-└────────────────────────┬────────────────────────────────────────┘
-                         │
-                         │ FINAL_QUERY generated
+┌─────────────────────────────────────────────────────────────┐
+│                   Main API (FastAPI)                         │
+│                      api_mcp.py                              │
+│                                                              │
+│  - Handles user conversation                                │
+│  - Generates search queries                                 │
+│  - Coordinates MCP agents                                   │
+└────────────────────────┬────────────────────────────────────┘
+                         │ MCP Protocol
                          ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                      RESEARCH AGENT                             │
-│                   (research_agent.py)                           │
-│                                                                 │
-│  1. Receives final query                                        │
-│  2. Searches web via Serper API ──────────┐                     │
-│  3. Analyzes results with AI              │                     │
-│  4. Returns verification:                 │                     │
-│     - exists: true/false                  │                     │
-│     - info: product details               │                     │
-│     - confidence: high/medium/low         │                     │
-└────────────────────────┬──────────────────┼─────────────────────┘
-                         │                  │
-                         │                  │
-                    ┌────┴────┐             │
-                    │         │             │
-         Product    │  Product│             │
-         doesn't    │  exists │             │
-         exist      │         │             │
-                    │         │             │
-                    ▼         ▼             │
-            ┌──────────┐  ┌──────────────────────────┐
-            │   Ask    │  │   Search eBay + Amazon   │
-            │   User   │  │                          │
-            │  Clarify │  │  ┌────────────────────┐  │
-            └──────────┘  │  │   eBay Browse API  │  │
-                          │  └────────────────────┘  │
-                          │  ┌────────────────────┐  │
-                          │  │  Rainforest API    │  │
-                          │  │  (Amazon)          │  │
-                          │  └────────────────────┘  │
-                          └────────────┬─────────────┘
-                                       │
-                                       │ Results
-                                       ▼
-                          ┌─────────────────────────┐
-                          │   Display Results to    │
-                          │   User (eBay + Amazon)  │
-                          └─────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                   MCP Client Manager                         │
+│                     mcp_client.py                            │
+│                                                              │
+│  - Manages connections to MCP servers                       │
+│  - Routes tool calls to appropriate servers                 │
+└────────┬───────────────┬───────────────┬────────────────────┘
+         │               │               │
+         ▼               ▼               ▼
+┌────────────────┐ ┌────────────┐ ┌──────────────┐
+│ Research Agent │ │ eBay Agent │ │ Amazon Agent │
+│  MCP Server    │ │ MCP Server │ │  MCP Server  │
+└────────┬───────┘ └─────┬──────┘ └──────┬───────┘
+         │               │               │
+         ▼               ▼               ▼
+┌────────────────┐ ┌────────────┐ ┌──────────────┐
+│ ResearchAgent  │ │ eBaySearch │ │ Rainforest   │
+│   (Core)       │ │  (Core)    │ │   (Core)     │
+└────────┬───────┘ └─────┬──────┘ └──────┬───────┘
+         │               │               │
+         ▼               ▼               ▼
+    Serper API      eBay API      Rainforest API
 ```
 
-## Agent Responsibilities
+## 🎯 Agent Responsibilities
 
-### 🤖 Main Agent (api.py)
-- **Model**: `google/gemini-2.5-pro`
-- **Purpose**: Conversation management
+### 1. **Main Conversational Agent** (`api_mcp.py`)
+- **Model**: `google/gemini-2.5-flash-lite`
+- **Purpose**: User interaction and query generation
 - **Tasks**:
   - Understand user intent
-  - Ask 1-2 clarifying questions
+  - Ask clarifying questions (model, color, budget, etc.)
   - Generate final search query
-  - Coordinate with research agent
+  - Coordinate with MCP agents
   - Format and return results
 
-### 🔍 Research Agent (research_agent.py)
-- **Model**: `google/gemini-2.5-flash-lite` (fast analysis)
-- **Purpose**: Product verification
+### 2. **Research Agent** (MCP Server)
+- **Location**: `mcp_servers/research_server.py`
+- **Core Logic**: `agents/research_agent.py`
+- **Model**: `google/gemini-2.5-flash-lite`
+- **Purpose**: Product verification via web search
+- **Tools**:
+  - `verify_product` - Checks if product exists and is available
 - **Tasks**:
-  - Search web for product information
-  - Verify product exists
-  - Check release dates and availability
-  - Provide confidence ratings
-  - **Runs ONLY when FINAL_QUERY is ready**
+  - Search web for product info (Serper API)
+  - Verify product exists and is currently available
+  - Check release dates
+  - Return: exists, info, confidence, release_status
 
-### 🛒 Search Agents (ebay_search.py)
-- **eBay Agent**: Queries eBay Browse API
-- **Amazon Agent**: Queries Rainforest API
-- **Purpose**: Fetch actual product listings
-- **Runs ONLY if research agent confirms product exists**
+### 3. **eBay Search Agent** (MCP Server)
+- **Location**: `mcp_servers/ebay_server.py`
+- **Core Logic**: `agents/search_agents.py` (eBaySearch class)
+- **Purpose**: Search eBay for products
+- **Tools**:
+  - `search_ebay` - Search eBay Browse API
+- **Tasks**:
+  - Authenticate with eBay API
+  - Search for products
+  - Return: title, price, condition, URL, image
 
-## Key Design Decisions
+### 4. **Amazon Search Agent** (MCP Server)
+- **Location**: `mcp_servers/amazon_server.py`
+- **Core Logic**: `agents/search_agents.py` (RainforestSearch class)
+- **Purpose**: Search Amazon for products
+- **Tools**:
+  - `search_amazon` - Search via Rainforest API
+- **Tasks**:
+  - Query Rainforest API
+  - Search for products
+  - Return: title, price, rating, URL, image
 
-### ✅ Why Research Agent Runs AFTER Final Query?
+## 🔄 Request Flow
 
-1. **Efficiency**: Don't waste web search API calls during conversation
-2. **Accuracy**: Verify the exact query user wants, not intermediate messages
-3. **Cost**: Web search APIs have usage limits
-4. **User Experience**: Faster conversation flow
-
-### ✅ Why Multi-Agent Architecture?
-
-1. **Separation of Concerns**: Each agent has a specific job
-2. **Modularity**: Easy to add/remove/upgrade agents
-3. **Scalability**: Can run agents in parallel or distributed
-4. **Maintainability**: Easier to debug and test individual agents
-
-## Example Flow
-
-```
-User: "I want an iPhone 17"
-  ↓
-Main Agent: "What storage capacity? New or used?"
-  ↓
-User: "1000$, iPhone 17"
-  ↓
-Main Agent: Generates "FINAL_QUERY: iPhone 17 1TB new under $1000"
-  ↓
-Research Agent: 
-  - Searches web for "iPhone 17"
-  - Finds: "iPhone 17 not released yet, latest is iPhone 16"
-  - Returns: exists=false, confidence=high
-  ↓
-Main Agent: "I couldn't find iPhone 17. Latest is iPhone 16. Search anyway?"
-  ↓
-User: "Yes, iPhone 16"
-  ↓
-Main Agent: Generates "FINAL_QUERY: iPhone 16 1TB new under $1000"
-  ↓
-Research Agent: 
-  - Searches web for "iPhone 16"
-  - Finds: "iPhone 16 released September 2024"
-  - Returns: exists=true, confidence=high
-  ↓
-eBay API + Amazon API: Search for products
-  ↓
-Display Results to User
-```
-
-## API Call Flow
+### Example: User searches for "iPhone 16"
 
 ```
-Frontend                Main Agent              Research Agent         External APIs
-   │                        │                         │                      │
-   ├─── POST /chat ────────>│                         │                      │
-   │                        │                         │                      │
-   │                        ├─ Ask questions ────────>│                      │
-   │<─── Response ──────────┤                         │                      │
-   │                        │                         │                      │
-   ├─── POST /chat ────────>│                         │                      │
-   │    (more details)      │                         │                      │
-   │                        │                         │                      │
-   │                        ├─ Generate FINAL_QUERY   │                      │
-   │                        │                         │                      │
-   │                        ├─ verify_product() ─────>│                      │
-   │                        │                         ├─ Web Search ───────>│
-   │                        │                         │<─ Search Results ────┤
-   │                        │                         │                      │
-   │                        │                         ├─ AI Analysis        │
-   │                        │<─ Verification Result ──┤                      │
-   │                        │                         │                      │
-   │                        ├─ Search eBay ──────────────────────────────────>│
-   │                        ├─ Search Amazon ────────────────────────────────>│
-   │                        │<─ eBay Results ──────────────────────────────────┤
-   │                        │<─ Amazon Results ────────────────────────────────┤
-   │                        │                         │                      │
-   │<─── Display Results ───┤                         │                      │
+1. User: "I want an iPhone"
+   ↓
+2. Main Agent: "What storage capacity? New or used?"
+   ↓
+3. User: "256GB, new"
+   ↓
+4. Main Agent: Generates "FINAL_QUERY: iPhone 16 256GB new"
+   ↓
+5. Research Agent (MCP):
+   - Searches web for "iPhone 16"
+   - Verifies: exists=true, release_status=available
+   - Returns: "iPhone 16 released September 2024"
+   ↓
+6. eBay Agent (MCP):
+   - Calls eBay Browse API
+   - Returns 4 product listings
+   ↓
+7. Amazon Agent (MCP):
+   - Calls Rainforest API
+   - Returns 4 product listings
+   ↓
+8. Main Agent:
+   - Combines results
+   - Returns to frontend
+   ↓
+9. Frontend: Displays eBay + Amazon results
 ```
 
-## Configuration
+## 🛠️ Technology Stack
 
-All agents are configured in `api.py`:
+### Backend
+- **Framework**: FastAPI (async)
+- **Protocol**: Model Context Protocol (MCP)
+- **AI Models**: OpenRouter (Google Gemini, Anthropic Claude, etc.)
+- **APIs**: eBay Browse API, Rainforest API, Serper API
 
-```python
+### Frontend
+- **HTML/CSS/JavaScript** (Vanilla)
+- **No framework** - Simple and fast
+
+### MCP Infrastructure
+- **MCP SDK**: Python MCP library
+- **Communication**: stdio (standard input/output)
+- **Format**: JSON-RPC
+
+## 📁 Project Structure
+
+```
+version_1/
+├── agents/                      # Core agent logic
+│   ├── __init__.py
+│   ├── search_agents.py        # eBay + Amazon search classes
+│   └── research_agent.py       # Product verification class
+│
+├── mcp_servers/                 # MCP server wrappers
+│   ├── research_server.py      # Research agent MCP server
+│   ├── ebay_server.py          # eBay search MCP server
+│   └── amazon_server.py        # Amazon search MCP server
+│
+├── api.py                       # Original API (backup)
+├── api_mcp.py                   # MCP-based API (current)
+├── mcp_client.py                # MCP client manager
+│
+├── index.html                   # Frontend UI
+├── style.css                    # Styling
+│
+├── mcp_config.json              # MCP server configuration
+├── start_mcp_servers.sh         # Startup script
+│
+├── requirements.txt             # Python dependencies
+├── .env                         # API keys (gitignored)
+├── .gitignore                   # Git ignore rules
+│
+└── docs/
+    ├── README.md                # Main documentation
+    ├── MCP_GUIDE.md             # MCP setup & testing
+    └── BUGFIXES.md              # Bug fix history
+```
+
+## 🔑 API Keys Required
+
+```bash
 # Main Agent
-ai_client = OpenAI(
-    model="google/gemini-2.5-pro",  # Can be changed
-    ...
-)
+MAIN_AGENT_API_KEY=sk-or-v1-xxxxx
 
-# Research Agent (optional)
-research_agent = ResearchAgent(
-    openrouter_api_key=OPENROUTER_API_KEY,
-    serper_api_key=SERPER_API_KEY  # Optional
-)
+# Research Agent
+RESEARCH_AGENT_API_KEY=sk-or-v1-xxxxx
+SERPER_API_KEY=your_serper_key
+
+# eBay Agent
+EBAY_CLIENT_ID=your_ebay_id
+EBAY_CLIENT_SECRET=your_ebay_secret
+
+# Amazon Agent
+RAINFOREST_API_KEY=your_rainforest_key
 ```
 
-## Future Enhancements
+## 🚀 Running the Application
 
-- [ ] **Price Comparison Agent**: Analyzes prices and recommends best deals
-- [ ] **Review Analysis Agent**: Summarizes product reviews
-- [ ] **Recommendation Agent**: Suggests alternative products
+### Start MCP Servers:
+```bash
+./start_mcp_servers.sh
+```
+
+### Start Main API:
+```bash
+python3 api_mcp.py
+```
+
+### Start Frontend:
+```bash
+python3 -m http.server 3000
+```
+
+Open: `http://localhost:3000`
+
+## ✅ MCP Architecture Benefits
+
+1. **Microservices** - Each agent runs independently
+2. **Fault Isolation** - One agent crash doesn't affect others
+3. **Scalability** - Easy to add new agents
+4. **Testing** - Test each agent independently
+5. **Deployment** - Deploy agents separately
+6. **Standardization** - Industry-standard protocol (MCP)
+7. **Hot Reload** - Restart agents without restarting main API
+
+## 🔮 Future Enhancements
+
+- [ ] Price Comparison Agent (analyze best deals)
+- [ ] Review Analysis Agent (summarize reviews)
+- [ ] Inventory Checker Agent (check stock availability)
+- [ ] Price History Agent (track price trends)
+- [ ] Recommendation Agent (suggest alternatives)
+
+## 📚 References
+
+- [MCP Specification](https://spec.modelcontextprotocol.io/)
+- [MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk)
+- [FastAPI Documentation](https://fastapi.tiangolo.com/)
+- [OpenRouter](https://openrouter.ai/)
+
+---
+
+**Architecture Version**: 2.0 (MCP-based)  
+**Last Updated**: November 22, 2025

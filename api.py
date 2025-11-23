@@ -14,9 +14,8 @@ from pydantic import BaseModel
 from typing import List, Dict, Optional
 from openai import OpenAI
 
-# Import your existing classes from your script
-from ebay_search import eBaySearch, RainforestSearch
-from research_agent import ResearchAgent
+# Import agent classes from the agents package
+from agents import eBaySearch, RainforestSearch, ResearchAgent
 
 # --- Load API Keys ---
 from dotenv import load_dotenv

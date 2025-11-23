@@ -1,217 +1,316 @@
-# AI-Powered Shopping Assistant
+# AI-Powered Shopping Assistant (MCP Architecture)
 
-An intelligent shopping assistant that helps users find the best deals on eBay and Amazon using conversational AI and real-time product verification.
+An intelligent shopping assistant that helps users find the best deals on eBay and Amazon using **multi-agent architecture** powered by the **Model Context Protocol (MCP)**.
+
+## 🌟 Features
+
+- ✅ **Conversational AI** - Natural language product search
+- ✅ **Multi-Agent System** - Independent agents for different tasks
+- ✅ **Product Verification** - Real-time web search to verify products exist
+- ✅ **Dual Marketplace** - Searches both eBay and Amazon simultaneously
+- ✅ **Smart Filtering** - Blocks unreleased/rumored products
+- ✅ **MCP Protocol** - Industry-standard microservices architecture
+- ✅ **Date-Aware** - Knows current date for product availability
+- ✅ **Works with Any Product** - Electronics, clothes, furniture, etc.
 
 ## 🏗️ Architecture
 
-This project uses a **multi-agent architecture**:
-
-### 1. **Main Conversational Agent** (`api.py`)
-- Handles user conversation
-- Asks clarifying questions to refine search
-- Generates final search queries
-- Coordinates with other agents
-
-### 2. **Research Agent** (`research_agent.py`)
-- Verifies product existence using web search (Serper API)
-- Checks if products are currently available
-- Provides confidence ratings on product information
-- Runs **AFTER** the final query is generated but **BEFORE** hitting eBay/Amazon APIs
-
-### 3. **Search Agents** (`ebay_search.py`)
-- eBay Search: Queries eBay Browse API
-- Amazon Search: Queries Rainforest API
-
-## 🔄 Workflow
+This project uses **Model Context Protocol (MCP)** for a microservices-based architecture:
 
 ```
-User Message
-    ↓
-Main Agent (asks clarifying questions)
-    ↓
-User provides details
-    ↓
-Main Agent generates FINAL_QUERY
-    ↓
-Research Agent verifies product ← Web Search (Serper)
-    ↓
-    ├─ Product exists → Continue to search
-    │   ↓
-    │   eBay API + Amazon API
-    │   ↓
-    │   Display results to user
-    │
-    └─ Product doesn't exist → Ask user to clarify or search anyway
+Frontend → Main API → MCP Client → [Research Agent | eBay Agent | Amazon Agent]
 ```
 
-## 🚀 Setup Instructions
+- **Main Agent**: Handles conversation and generates search queries
+- **Research Agent**: Verifies products via web search (Serper API)
+- **eBay Agent**: Searches eBay Browse API
+- **Amazon Agent**: Searches Amazon via Rainforest API
 
-### 1. Create Virtual Environment
+See [`ARCHITECTURE.md`](ARCHITECTURE.md) for detailed system design.
+
+## 🚀 Quick Start
+
+### 1. Install Dependencies
 
 ```bash
 # Create virtual environment
 python3 -m venv venv
+source venv/bin/activate  # On Mac/Linux
 
-# Activate it (Mac/Linux)
-source venv/bin/activate
-
-# Install dependencies
+# Install packages
 pip install -r requirements.txt
 ```
 
 ### 2. Configure API Keys
 
-Create a `.env` file in the project root with the following keys:
+Create a `.env` file:
 
 ```bash
-# Required
+# Main Agent
+MAIN_AGENT_API_KEY=your_openrouter_key
+
+# Research Agent
+RESEARCH_AGENT_API_KEY=your_openrouter_key
+SERPER_API_KEY=your_serper_key
+
+# eBay Agent
 EBAY_CLIENT_ID=your_ebay_client_id
 EBAY_CLIENT_SECRET=your_ebay_client_secret
-OPENROUTER_API_KEY=your_openrouter_api_key
-RAINFOREST_API_KEY=your_rainforest_api_key
 
-# Optional (for product verification)
-SERPER_API_KEY=your_serper_api_key
+# Amazon Agent
+RAINFOREST_API_KEY=your_rainforest_key
 ```
 
-#### Where to get API keys:
-
+**Where to get keys:**
+- **OpenRouter**: https://openrouter.ai/keys
+- **Serper**: https://serper.dev (2,500 free searches/month)
 - **eBay**: https://developer.ebay.com/
-- **OpenRouter**: https://openrouter.ai/
 - **Rainforest**: https://www.rainforestapi.com/
-- **Serper** (optional): https://serper.dev (2,500 free searches/month)
 
-### 3. Run the Application
+### 3. Start the Application (3 Terminals Required)
 
-**Terminal 1 - Backend:**
+You need **3 separate terminal windows/tabs**, all with the virtual environment activated.
+
+#### **Terminal 1: MCP Servers**
+
 ```bash
-# Make sure virtual environment is activated
-source venv/bin/activate
+# Navigate to project directory
+cd /path/to/version_1
 
-# Start the API server
-python3 api.py
+# Activate virtual environment
+source venv/bin/activate  # On Mac/Linux
+# OR
+venv\Scripts\activate     # On Windows
+
+# Make script executable (first time only)
+chmod +x start_mcp_servers.sh
+
+# Start all MCP servers
+./start_mcp_servers.sh
 ```
 
-**Terminal 2 - Frontend:**
+**Expected output:**
+```
+✓ All HTTP MCP servers started!
+Research Agent: http://127.0.0.1:8001 (PID: xxxxx)
+eBay Search:    http://127.0.0.1:8002 (PID: xxxxx)
+Amazon Search:  http://127.0.0.1:8003 (PID: xxxxx)
+```
+
+**Keep this terminal running!** ✋
+
+---
+
+#### **Terminal 2: Main API**
+
 ```bash
-# Option A: Simple HTTP server
+# Navigate to project directory
+cd /path/to/version_1
+
+# Activate virtual environment
+source venv/bin/activate  # On Mac/Linux
+# OR
+venv\Scripts\activate     # On Windows
+
+# Start main API server
+python3 api_mcp.py
+```
+
+**Expected output:**
+```
+Initializing OpenRouter AI for main agent...
+Starting Main API Server (HTTP-based MCP) at http://127.0.0.1:8000
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+```
+
+**Keep this terminal running!** ✋
+
+---
+
+#### **Terminal 3: Frontend**
+
+```bash
+# Navigate to project directory
+cd /path/to/version_1
+
+# Activate virtual environment (optional for this one)
+source venv/bin/activate  # On Mac/Linux
+
+# Start frontend server
 python3 -m http.server 3000
-
-# Option B: Just open the file
-open index.html
 ```
 
-Then open your browser to:
-- Frontend: `http://localhost:3000`
-- Backend API: `http://127.0.0.1:8000`
+**Expected output:**
+```
+Serving HTTP on :: port 3000 (http://[::]:3000/) ...
+```
 
-## 🧠 AI Models
+**Keep this terminal running!** ✋
 
-The system uses **OpenRouter** to access various AI models. Current configuration:
+---
 
-- **Main Agent**: `google/gemini-2.5-pro` (better reasoning, recent knowledge)
-- **Research Agent**: `google/gemini-2.5-flash-lite` (fast analysis)
+#### **Open Browser**
 
-### Available Models
+Go to: **http://localhost:3000**
 
-You can change the model in `api.py` (line ~143). Popular options:
+Start chatting with the AI shopping assistant! 🛍️
 
-| Model | Best For | Cost |
-|-------|----------|------|
-| `google/gemini-2.5-pro` | Complex reasoning, recent knowledge | Medium |
-| `anthropic/claude-3.5-sonnet` | Nuanced conversation, code | Higher |
-| `openai/gpt-4o-mini` | General tasks, cheap | Low |
-| `meta-llama/Meta-Llama-3.1-70B-Instruct` | Open-source, instruction following | Medium |
+---
 
-See full list: https://openrouter.ai/models
+### 4. Stopping the Application
 
-## 🔍 Research Agent (Product Verification)
+Press `Ctrl+C` in each terminal to stop the servers.
 
-The Research Agent is **optional** but highly recommended. It:
+Or kill all MCP servers at once:
+```bash
+pkill -f 'mcp_servers'
+```
 
-1. ✅ Verifies products exist before searching
-2. ✅ Prevents wasted API calls on non-existent products
-3. ✅ Provides current information (release dates, specs)
-4. ✅ Works with ANY product category (not just electronics)
+## 📖 Documentation
 
-**How it works:**
-- When the main agent generates a `FINAL_QUERY`, the research agent searches the web
-- It analyzes search results using AI to determine if the product exists
-- If the product doesn't exist with high confidence, it asks the user for clarification
-- Otherwise, it proceeds with eBay/Amazon searches
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** - System architecture and design
+- **[MCP_GUIDE.md](MCP_GUIDE.md)** - MCP setup, testing, and troubleshooting
+- **[BUGFIXES.md](BUGFIXES.md)** - Bug fix history and solutions
 
-**To enable:** Add `SERPER_API_KEY` to your `.env` file
+## 🎯 Example Usage
+
+```
+User: "I want an iPhone"
+Agent: "What storage capacity are you looking for? And new or used?"
+
+User: "256GB, new"
+Agent: "Are you looking for iPhone 16, 16 Plus, 16 Pro, or 16 Pro Max?"
+
+User: "iPhone 16"
+[Research Agent verifies product exists]
+[Searches eBay and Amazon]
+[Displays results from both platforms]
+```
+
+### Smart Product Verification
+
+```
+User: "Samsung S26 Ultra"
+Agent: "The 'Samsung S26 Ultra' hasn't been released yet. 
+       Expected in early 2026. Would you like to search for 
+       a currently available alternative?"
+```
+
+## 🛠️ Technology Stack
+
+### Backend
+- **FastAPI** - Async web framework
+- **MCP** - Model Context Protocol for microservices
+- **OpenRouter** - AI model access (Gemini, Claude, etc.)
+- **Python 3.13+**
+
+### Frontend
+- **HTML/CSS/JavaScript** - Vanilla (no framework)
+- **Modern UI** - Clean, responsive design
+
+### APIs
+- **eBay Browse API** - Product search
+- **Rainforest API** - Amazon search
+- **Serper API** - Web search for verification
+- **OpenRouter API** - AI models
 
 ## 📁 Project Structure
 
 ```
 version_1/
-├── api.py                  # Main FastAPI backend + conversational agent
-├── research_agent.py       # Product verification agent
-├── ebay_search.py         # eBay and Amazon search logic
-├── index.html             # Frontend UI
-├── style.css              # Styling
-├── requirements.txt       # Python dependencies
-├── .env                   # API keys (not in git)
-└── README.md             # This file
+├── agents/                  # Core agent logic
+│   ├── search_agents.py    # eBay + Amazon search
+│   └── research_agent.py   # Product verification
+│
+├── mcp_servers/             # MCP server implementations
+│   ├── research_server.py
+│   ├── ebay_server.py
+│   └── amazon_server.py
+│
+├── api_mcp.py               # Main FastAPI backend (MCP)
+├── mcp_client.py            # MCP client manager
+├── index.html               # Frontend UI
+├── style.css                # Styling
+│
+└── docs/                    # Documentation
+    ├── README.md
+    ├── ARCHITECTURE.md
+    ├── MCP_GUIDE.md
+    └── BUGFIXES.md
 ```
 
-## 🛠️ Troubleshooting
+## 🧪 Testing
 
-### Research Agent not working?
-- Check that `SERPER_API_KEY` is in your `.env` file
-- Restart the backend server after adding the key
-- You should see "Initializing Research Agent with web search..." on startup
+### Test Individual MCP Servers
 
-### "Product doesn't exist" errors?
-- The research agent is being cautious
-- You can choose to "search anyway" when prompted
-- Or refine your query to be more specific
+```bash
+# Test Research Agent
+python3 mcp_servers/research_server.py
 
-### Frontend can't connect to backend?
-- Make sure backend is running on `http://127.0.0.1:8000`
-- Check browser console for CORS errors
-- Verify CORS is enabled in `api.py` (it should be by default)
+# Test eBay Search
+python3 mcp_servers/ebay_server.py
 
-## 🎯 Features
-
-- ✅ Conversational AI that asks clarifying questions
-- ✅ Multi-agent architecture (Main + Research agents)
-- ✅ Real-time product verification via web search
-- ✅ Searches both eBay and Amazon simultaneously
-- ✅ Date-aware (knows current date for product availability)
-- ✅ Works with any product category (electronics, clothes, furniture, etc.)
-- ✅ Prevents wasted API calls on non-existent products
-- ✅ Clean, modern UI
-
-## 📝 Example Conversation
-
+# Test Amazon Search
+python3 mcp_servers/amazon_server.py
 ```
-User: "I want an iPhone 17"
-Agent: "What storage capacity are you looking for? And are you interested in new or used condition?"
 
-User: "1000$, iPhone 17"
-Agent: "Are you looking for the iPhone 16, iPhone 16 Plus, iPhone 16 Pro, or iPhone 16 Pro Max?"
+### Test Products
 
-User: "iPhone 16"
-[Research Agent verifies "iPhone 16" exists]
-[Searches eBay and Amazon]
-[Displays results]
+**Should work** (currently available):
+- iPhone 16 Pro Max
+- Samsung Galaxy S24 Ultra
+- MacBook Pro M3
+
+**Should be blocked** (not released):
+- iPhone 17
+- Samsung S26 Ultra
+- PlayStation 6
+
+## 🐛 Troubleshooting
+
+### "MCP servers not connected"
+- Make sure MCP servers are running first
+- Check: `ps aux | grep mcp_servers`
+
+### "Module 'mcp' not found"
+```bash
+pip install mcp
 ```
+
+### "SERPER_API_KEY not found"
+- Add it to `.env` file
+- Research agent will work with limited functionality
+
+### eBay results not showing
+- Check eBay API token hasn't expired
+- Restart the eBay MCP server
+
+See [MCP_GUIDE.md](MCP_GUIDE.md) for detailed troubleshooting.
 
 ## 🔮 Future Enhancements
 
-- [ ] Add price comparison and recommendations
-- [ ] Support for more marketplaces (Walmart, Best Buy, etc.)
-- [ ] User preferences and search history
-- [ ] Price tracking and alerts
-- [ ] Image-based product search
+- [ ] Price Comparison Agent (analyze best deals)
+- [ ] Review Analysis Agent (summarize reviews)
+- [ ] Inventory Checker Agent (check stock)
+- [ ] Price History Agent (track trends)
 - [ ] Multi-language support
+- [ ] Image-based search
+- [ ] Price alerts
 
 ## 📄 License
 
 This project is for educational purposes (CMPE 295A).
 
+## 🙏 Acknowledgments
+
+- **Model Context Protocol** by Anthropic
+- **OpenRouter** for AI model access
+- **eBay** and **Amazon** for product APIs
+- **Serper** for web search API
+
 ---
 
-**Built with ❤️ using FastAPI, OpenRouter, and multi-agent AI architecture**
+**Built with ❤️ using FastAPI, MCP, and multi-agent AI architecture**
+
+**Version**: 2.0 (MCP-based)  
+**Last Updated**: November 22, 2025
