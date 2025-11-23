@@ -1,15 +1,22 @@
 import { useState, useRef, useEffect } from 'react'
 import axios from 'axios'
 import ReactMarkdown from 'react-markdown'
+import { AuthProvider, useAuth } from './context/AuthContext'
+import Login from './components/Login'
+import Sidebar from './components/Sidebar'
 import './App.css'
 
 const API_URL = 'http://127.0.0.1:8000'
 
-function App() {
+// Create a wrapper component to use the auth hook
+const ChatApp = () => {
+  const { user, token, logout, loading } = useAuth();
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [results, setResults] = useState(null)
+  const [conversations, setConversations] = useState([])
+  const [currentConversationId, setCurrentConversationId] = useState(null)
   const messagesEndRef = useRef(null)
 
   // Auto-scroll to bottom when messages change
@@ -21,26 +28,83 @@ function App() {
     scrollToBottom()
   }, [messages])
 
-  // Initialize chat on mount
+  // Clear all state when user logs out
   useEffect(() => {
-    const initChat = async () => {
-      try {
-        const response = await axios.post(`${API_URL}/chat`, {
-          message: '',
-          history: []
-        })
+    if (!user) {
+      setMessages([]);
+      setResults(null);
+      setConversations([]);
+      setCurrentConversationId(null);
+    }
+  }, [user]);
 
-        setMessages([{
-          role: 'assistant',
-          content: response.data.message
-        }])
-      } catch (error) {
-        console.error('Error initializing chat:', error)
-      }
+  // Fetch conversations on mount
+  useEffect(() => {
+    if (!user) return;
+    fetchConversations();
+  }, [user, token]);
+
+  const fetchConversations = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/conversations`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setConversations(response.data);
+    } catch (error) {
+      console.error('Error fetching conversations:', error);
+    }
+  };
+
+  // Load conversation history when selected
+  useEffect(() => {
+    if (!currentConversationId) {
+      setMessages([]);
+      setResults(null); // Clear results for new chat
+      return;
     }
 
-    initChat()
-  }, [])
+    const loadConversation = async () => {
+      try {
+        const response = await axios.get(`${API_URL}/conversations/${currentConversationId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const loadedMessages = response.data;
+        setMessages(loadedMessages);
+
+        // Check if any message has results and restore them
+        const messageWithResults = loadedMessages.find(msg => msg.results);
+        if (messageWithResults) {
+          setResults(messageWithResults.results);
+        } else {
+          setResults(null);
+        }
+      } catch (error) {
+        console.error('Error loading conversation:', error);
+      }
+    };
+
+    loadConversation();
+  }, [currentConversationId, token]);
+
+  const handleNewChat = () => {
+    setCurrentConversationId(null);
+    setMessages([]);
+    setResults(null);
+  };
+
+  const handleDeleteConversation = async (id) => {
+    try {
+      await axios.delete(`${API_URL}/conversations/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      fetchConversations();
+      if (currentConversationId === id) {
+        handleNewChat();
+      }
+    } catch (error) {
+      console.error('Error deleting conversation:', error);
+    }
+  };
 
   const sendMessage = async (e) => {
     e.preventDefault()
@@ -50,27 +114,38 @@ function App() {
     setInput('')
     setIsLoading(true)
 
-    // Add user message to chat
+    // Add user message to chat immediately
     const newMessages = [...messages, { role: 'user', content: userMessage }]
     setMessages(newMessages)
 
     try {
-      // Prepare history for API
+      // Prepare history for API (exclude system messages if we were doing that on frontend, but we aren't)
       const history = newMessages.map(msg => ({
         role: msg.role,
         content: msg.content
       }))
 
-      const response = await axios.post(`${API_URL}/chat`, {
-        message: userMessage,
-        history: history.slice(0, -1) // Exclude the message we just added
-      })
+      const response = await axios.post(
+        `${API_URL}/chat`,
+        {
+          message: userMessage,
+          conversation_id: currentConversationId,
+          history: history.slice(0, -1) // Exclude the message we just added
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
 
       // Add assistant response
       setMessages([...newMessages, {
         role: 'assistant',
         content: response.data.message
       }])
+
+      // Update conversation ID if it was a new chat
+      if (!currentConversationId && response.data.conversation_id) {
+        setCurrentConversationId(response.data.conversation_id);
+        fetchConversations(); // Refresh list to show new title
+      }
 
       // If we got results, display them
       if (response.data.type === 'results' && response.data.results) {
@@ -79,27 +154,67 @@ function App() {
 
     } catch (error) {
       console.error('Error sending message:', error)
-      setMessages([...newMessages, {
-        role: 'assistant',
-        content: 'Sorry, I encountered an error. Please try again.'
-      }])
+      if (error.response?.status === 401) {
+        logout();
+      } else {
+        setMessages([...newMessages, {
+          role: 'assistant',
+          content: 'Sorry, I encountered an error. Please try again.'
+        }])
+      }
     } finally {
       setIsLoading(false)
     }
   }
 
+  if (loading) return <div className="app">Loading...</div>;
+  if (!user) return <Login />;
+
   return (
     <div className="app">
-      <header className="header">
-        <h1>🛍️ AI Shopping Assistant</h1>
-        <p>Find the best deals on eBay and Amazon</p>
+      <header className="header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h1>🛍️ AI Shopping Assistant</h1>
+          <p>Find the best deals on eBay and Amazon</p>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <span style={{ marginRight: '1rem', color: 'var(--text-secondary)' }}>Hi, {user.username}</span>
+          <button
+            onClick={logout}
+            style={{
+              background: 'rgba(255,255,255,0.1)',
+              border: '1px solid rgba(255,255,255,0.2)',
+              padding: '0.5rem 1rem',
+              color: 'white',
+              borderRadius: '8px',
+              cursor: 'pointer'
+            }}
+          >
+            Logout
+          </button>
+        </div>
       </header>
 
       <div className="container">
+        <Sidebar
+          conversations={conversations}
+          currentConversationId={currentConversationId}
+          onSelectConversation={setCurrentConversationId}
+          onNewChat={handleNewChat}
+          onDeleteConversation={handleDeleteConversation}
+        />
+
         {/* Chat Section */}
         <div className="chat-section">
           <div className="chat-container">
             <div className="messages">
+              {messages.length === 0 && !currentConversationId && (
+                <div className="message assistant">
+                  <div className="message-content">
+                    <p>👋 Hi! I can help you find products on eBay and Amazon. What are you looking for?</p>
+                  </div>
+                </div>
+              )}
               {messages.map((msg, index) => (
                 <div key={index} className={`message ${msg.role}`}>
                   <div className="message-content">
@@ -205,6 +320,14 @@ function App() {
         )}
       </div>
     </div>
+  )
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <ChatApp />
+    </AuthProvider>
   )
 }
 

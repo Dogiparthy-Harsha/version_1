@@ -95,6 +95,7 @@ class ResearchAgent:
         
         # Step 2: Extract relevant information from search results
         context = self._extract_search_context(search_results)
+        print(f"🔍 Research Agent Context:\n{context}") # DEBUG PRINT
         
         # Step 3: Use AI to analyze the search results
         analysis = self._analyze_with_ai(product_name, context)
@@ -154,10 +155,11 @@ Web search results:
 {search_context}
 
 IMPORTANT RULES:
-1. A product "exists" ONLY if it has been officially RELEASED and is currently available for purchase
-2. If a product is "rumored", "expected", "upcoming", or has a future release date, it does NOT exist yet
-3. If the release date is in the future (after {current_date}), mark exists=false
-4. If the product was released in the past or present, mark exists=true
+1. TRUST THE SEARCH RESULTS ABOVE YOUR INTERNAL KNOWLEDGE. If the search results show "Buy", "Shop", "Price", or "In Stock", the product EXISTS.
+2. A product "exists" if it has been officially RELEASED and is currently available for purchase.
+3. If a product is "rumored", "expected", "upcoming", or has a future release date, it does NOT exist yet.
+4. If the release date is in the future (after {current_date}), mark exists=false.
+5. If the product was released in the past or present, mark exists=true.
 
 Based on these search results, provide a JSON response with:
 1. "exists": true/false - Is this product CURRENTLY available for purchase (not just announced)?

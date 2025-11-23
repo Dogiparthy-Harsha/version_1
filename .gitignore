@@ -1,6 +1,10 @@
 # Environment variables
 .env
 
+# Database
+app.db
+*.db
+
 # Python
 __pycache__/
 *.py[cod]
@@ -14,6 +18,11 @@ build/
 dist/
 *.egg-info/
 
+# Node
+node_modules/
+frontend/node_modules/
+frontend/dist/
+
 # IDE
 .vscode/
 .idea/
@@ -24,4 +33,3 @@ dist/
 # OS
 .DS_Store
 Thumbs.db
-
