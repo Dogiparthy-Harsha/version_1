@@ -304,9 +304,9 @@ python3 mcp_servers/amazon_server.py
 - MacBook Pro M3
 
 **Should be blocked** (not released):
-- iPhone 17
-- Samsung S26 Ultra
-- PlayStation 6
+- iPhone 19
+- Samsung S27 Ultra
+- PlayStation 8
 
 ## 🐛 Troubleshooting
 
