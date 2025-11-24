@@ -88,7 +88,55 @@ RAINFOREST_API_KEY=your_rainforest_key
 
 > **💾 Note:** The SQLite database (`app.db`) will be automatically created when you first run the backend. No manual database setup is required.
 
-### 4. Start the Application (3 Terminals Required)
+### 4. Start the Application
+
+#### **Option A: Quick Start (Recommended) - Single Command** 🚀
+
+The easiest way to start all services with one command:
+
+```bash
+# Make script executable (first time only)
+chmod +x start_all.sh
+
+# Start everything!
+./start_all.sh
+```
+
+**What it does:**
+- ✅ Activates virtual environment automatically
+- ✅ Starts MCP servers (ports 8001-8003)
+- ✅ Starts backend API (port 8000)
+- ✅ Starts frontend (port 5173)
+- ✅ Creates logs in `logs/` directory
+- ✅ Handles graceful shutdown with `Ctrl+C`
+
+**Expected output:**
+```
+🚀 Starting AI Shopping Assistant...
+✓ Activating virtual environment
+✓ MCP Servers running
+✓ Backend API running on http://127.0.0.1:8000
+✓ Frontend running on http://localhost:5173
+
+✅ All services started successfully!
+
+🌐 Open your browser to: http://localhost:5173
+Press Ctrl+C to stop all services
+```
+
+**View logs in real-time:**
+```bash
+# In another terminal
+tail -f logs/api.log
+tail -f logs/mcp_servers.log
+tail -f logs/frontend.log
+```
+
+---
+
+#### **Option B: Manual Start (3 Terminals)**
+
+If you prefer manual control or need to debug:
 
 You need **3 separate terminal windows/tabs**, all with the virtual environment activated.
 
