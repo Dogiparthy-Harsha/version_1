@@ -1,18 +1,41 @@
-# AI-Powered Shopping Assistant (MCP Architecture)
+# AI Shopping Assistant (MCP Architecture)
 
-An intelligent shopping assistant that helps users find the best deals on eBay and Amazon using **multi-agent architecture** powered by the **Model Context Protocol (MCP)**.
+An intelligent shopping assistant that helps users find the best deals on eBay and Amazon using a **Model Context Protocol (MCP)** architecture with specialized agents.
 
-## 🌟 Features
+## Features
 
-- ✅ **User Authentication** - Secure JWT-based login/register with bcrypt password hashing
-- ✅ **Chat History** - Persistent conversation history with SQLite database
-- ✅ **Multiple Conversations** - Sidebar to manage and switch between chats
-- ✅ **Conversational AI** - Natural language product search
-- ✅ **Multi-Agent System** - Independent agents for different tasks
-- ✅ **Product Verification** - Real-time web search to verify products exist
-- ✅ **Dual Marketplace** - Searches both eBay and Amazon simultaneously
-- ✅ **Smart Filtering** - Blocks unreleased/rumored products
-- ✅ **Results Persistence** - Search results saved with conversations
+### 🔐 **User Authentication & Security**
+- JWT-based authentication with secure password hashing (bcrypt)
+- Password strength validation (min 8 chars, uppercase, lowercase, number, special char)
+- User-specific data isolation
+- Session management with token expiration
+
+### 💬 **Chat History & Persistence**
+- SQLite database for storing conversations
+- Conversation sidebar with search history
+- Resume past conversations with full context
+- Product search results persistence
+
+### 🧠 **RAG (Retrieval-Augmented Generation) with Pinecone**
+- **Personalized AI responses** based on user's search history
+- Vector embeddings using OpenAI's `text-embedding-3-small`
+- Semantic search across past conversations
+- User-isolated vector storage (privacy-first design)
+- Automatic context retrieval for personalized recommendations
+
+### 🤖 **Multi-Agent Architecture**
+- **Main Agent**: Orchestrates conversation flow and gathers product details
+- **Research Agent**: Real-time product verification using web search (Serper API)
+- **eBay Agent**: Searches eBay Browse API for product listings
+- **Amazon Agent**: Searches Amazon via Rainforest API
+- HTTP-based MCP communication between agents
+
+### 🔍 **Intelligent Product Search**
+- Natural language product queries
+- Clarifying questions to refine search (storage, color, condition, budget)
+- Real-time product availability verification
+- Parallel search across eBay and Amazon
+- Side-by-side comparison of results
 - ✅ **MCP Protocol** - Industry-standard microservices architecture
 - ✅ **Date-Aware** - Knows current date for product availability
 - ✅ **Works with Any Product** - Electronics, clothes, furniture, etc.
@@ -60,29 +83,36 @@ cd ..
 
 ### 3. Configure API Keys
 
-Create a `.env` file:
+Create a `.env` file in the project root:
 
 ```bash
-# Main Agent
-MAIN_AGENT_API_KEY=your_openrouter_key
+# Main Agent (OpenRouter)
+MAIN_AGENT_API_KEY=your_openrouter_api_key
 
 # Research Agent
-RESEARCH_AGENT_API_KEY=your_openrouter_key
-SERPER_API_KEY=your_serper_key
+RESEARCH_AGENT_API_KEY=your_openrouter_api_key
+SERPER_API_KEY=your_serper_api_key
 
 # eBay Agent
 EBAY_CLIENT_ID=your_ebay_client_id
 EBAY_CLIENT_SECRET=your_ebay_client_secret
 
 # Amazon Agent
-RAINFOREST_API_KEY=your_rainforest_key
+RAINFOREST_API_KEY=your_rainforest_api_key
+
+# RAG (Retrieval-Augmented Generation)
+OPENAI_API_KEY=your_openai_api_key
+PINECONE_API_KEY=your_pinecone_api_key
+PINECONE_ENVIRONMENT=us-east-1
 ```
 
-**Where to get keys:**
+**Get API Keys:**
 - **OpenRouter**: https://openrouter.ai/keys
-- **Serper**: https://serper.dev (2,500 free searches/month)
-- **eBay**: https://developer.ebay.com/
+- **Serper**: https://serper.dev/api-key
+- **eBay**: https://developer.ebay.com/my/keys
 - **Rainforest**: https://www.rainforestapi.com/
+- **OpenAI**: https://platform.openai.com/api-keys
+- **Pinecone**: https://app.pinecone.io/ (create index: `chat-history`, 1536 dimensions, cosine metric)
 
 > **⚠️ IMPORTANT:** The `.env` file is **required** and **not included** in the repository for security reasons. You must create it manually with your own API keys before running the application.
 
