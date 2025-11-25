@@ -88,7 +88,11 @@ const ChatApp = () => {
 
   const handleNewChat = () => {
     setCurrentConversationId(null);
-    setMessages([]);
+    // Add welcome message that persists
+    setMessages([{
+      role: 'assistant',
+      content: '👋 Hi! I can help you find products on eBay and Amazon. What are you looking for?'
+    }]);
     setResults(null);
   };
 

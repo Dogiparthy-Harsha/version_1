@@ -26,6 +26,7 @@ load_dotenv()
 import models
 import auth
 from database import engine, get_db
+from embeddings import EmbeddingService
 
 # Create Tables
 models.Base.metadata.create_all(bind=engine)
@@ -62,6 +63,16 @@ ai_client = OpenAI(
 
 # HTTP client for MCP servers
 http_client = httpx.AsyncClient(timeout=30.0)
+
+# Initialize RAG Embedding Service
+print("Initializing RAG Embedding Service...")
+try:
+    embedding_service = EmbeddingService()
+    print("✓ RAG Embedding Service ready")
+except Exception as e:
+    print(f"⚠️  RAG Embedding Service failed to initialize: {e}")
+    embedding_service = None
+
 
 
 # --- Request/Response Models ---
@@ -228,6 +239,23 @@ async def handle_chat(
         )
         db.add(user_msg)
         db.commit()
+        
+        # NOTE: We'll store in Pinecone AFTER getting AI response
+        # to avoid retrieving the current message as "past history"
+
+    # Retrieve RAG context from user's past conversations
+    rag_context = ""
+    if embedding_service and request.message:
+        try:
+            rag_context = embedding_service.get_user_context(
+                user_id=current_user.id,
+                query=request.message,
+                top_k=3
+            )
+            if rag_context:
+                print(f"📚 RAG Context retrieved:\n{rag_context}")
+        except Exception as e:
+            print(f"⚠️  Failed to retrieve RAG context: {e}")
 
     # System prompt
     current_date = datetime.now().strftime("%B %d, %Y")
@@ -245,6 +273,20 @@ async def handle_chat(
         "real-time verification agent can check its actual availability. "
         "Let the verification tool be the judge of whether a product exists."
     )
+    
+    # Enhance system prompt with RAG context if available
+    if rag_context:
+        system_prompt = (
+            f"{system_prompt}\n\n"
+            f"=== YOUR MEMORY OF THIS USER ===\n"
+            f"{rag_context}\n"
+            f"=== END OF MEMORY ===\n\n"
+            f"IMPORTANT: The above is YOUR memory of this user's past searches and preferences. "
+            f"You DO have access to their search history. Use it to provide personalized recommendations. "
+            f"For example, if they previously searched for iPhones, you can say "
+            f"'I see you searched for iPhone 17 Pro before. Looking for something similar?'"
+        )
+    
     welcome_message = f"Greetings {current_user.username}, I will help you find the best deals on eBay and Amazon. What are you looking for today?"
     
     # Handle initial welcome (only for new empty chats)
@@ -401,6 +443,31 @@ async def handle_chat(
         )
         db.add(ai_msg_db)
         db.commit()
+        
+        # Store AI response in Pinecone for RAG
+        if embedding_service:
+            try:
+                embedding_service.store_message(
+                    user_id=current_user.id,
+                    conversation_id=conversation_id,
+                    message=results_message,
+                    role="assistant",
+                    metadata={"product_query": final_query}
+                )
+            except Exception as e:
+                print(f"⚠️  Failed to store AI response in Pinecone: {e}")
+        
+        # NOW store the user's message in Pinecone (after AI response)
+        if embedding_service and request.message:
+            try:
+                embedding_service.store_message(
+                    user_id=current_user.id,
+                    conversation_id=conversation_id,
+                    message=request.message,
+                    role="user"
+                )
+            except Exception as e:
+                print(f"⚠️  Failed to store user message in Pinecone: {e}")
 
         return ChatResponse(
             type="results",
@@ -411,8 +478,10 @@ async def handle_chat(
         )
         
     else:
-        # It's a follow-up question - save to DB and history
+        # Just a clarifying question (no FINAL_QUERY yet)
         chat_history.append({"role": "assistant", "content": ai_message})
+        
+        # Save AI response to DB
         ai_msg_db = models.Chat(
             conversation_id=conversation_id, 
             message=ai_message, 
@@ -420,6 +489,31 @@ async def handle_chat(
         )
         db.add(ai_msg_db)
         db.commit()
+        
+        # Store AI response in Pinecone for RAG
+        if embedding_service:
+            try:
+                embedding_service.store_message(
+                    user_id=current_user.id,
+                    conversation_id=conversation_id,
+                    message=ai_message,
+                    role="assistant"
+                )
+            except Exception as e:
+                print(f"⚠️  Failed to store AI response in Pinecone: {e}")
+        
+        # NOW store the user's message in Pinecone (after AI response)
+        # This prevents the current message from appearing as "past history"
+        if embedding_service and request.message:
+            try:
+                embedding_service.store_message(
+                    user_id=current_user.id,
+                    conversation_id=conversation_id,
+                    message=request.message,
+                    role="user"
+                )
+            except Exception as e:
+                print(f"⚠️  Failed to store user message in Pinecone: {e}")
         
         return ChatResponse(
             type="question",
