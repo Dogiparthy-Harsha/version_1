@@ -10,7 +10,8 @@ import uvicorn
 import httpx
 from datetime import datetime, timedelta
 
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, File, UploadFile
+from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
@@ -522,7 +523,41 @@ async def handle_chat(
             history=chat_history
         )
 
+# --- Virtual Try-On Endpoint ---
+from fastapi import UploadFile, File, Depends, Response
+import time
+@app.post("/virtual-try-on")
+async def virtual_try_on(
+    clothing_image: UploadFile = File(...),
+    avatar_image: UploadFile = File(...),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """
+    Virtual Try-On using "Nano Banana 3" (Placeholder/Mock)
+    Receives clothing image and user avatar.
+    Returns the processed image.
+    """
+    print(f"🍌 Virtual Try-On Request from {current_user.username}")
+    print(f"   Clothing: {clothing_image.filename}")
+    print(f"   Avatar: {avatar_image.filename}")
+
+    # Simulate processing delay
+    time.sleep(2) 
+
+    # MOCK LOGIC: 
+    # In a real "Nano Banana 3" integration, we would:
+    # 1. Send clothing_image and avatar_image to Google's API
+    # 2. Get the result back
+    # 3. Return the result
+    
+    # For now, we'll just return the avatar image back as the 'result' 
+    # (Simulating that the user is now wearing the clothes... effectively just showing the user)
+    # Or to be more distinct, we return the clothing image. Let's return the clothing image to prove we got it.
+    
+    image_bytes = await clothing_image.read()
+    
+    return Response(content=image_bytes, media_type="image/jpeg")
 
 if __name__ == "__main__":
-    print("Starting Main API Server (HTTP-based MCP) at http://127.0.0.1:8000")
-    uvicorn.run("api_mcp:app", host="127.0.0.1", port=8000, reload=True)
+    print("Starting Main API Server (HTTP-based MCP) at http://0.0.0.0:8000")
+    uvicorn.run("api_mcp:app", host="0.0.0.0", port=8000, reload=True)

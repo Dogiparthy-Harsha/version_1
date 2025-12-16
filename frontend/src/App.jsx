@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import Login from './components/Login'
 import Sidebar from './components/Sidebar'
+import VirtualTryOn from './components/VirtualTryOn'
 import './App.css'
 
 const API_URL = 'http://127.0.0.1:8000'
@@ -323,6 +324,7 @@ const ChatApp = () => {
           </div>
         )}
       </div>
+      <VirtualTryOn />
     </div>
   )
 }
