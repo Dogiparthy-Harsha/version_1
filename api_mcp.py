@@ -533,30 +533,68 @@ async def virtual_try_on(
     current_user: models.User = Depends(auth.get_current_user)
 ):
     """
-    Virtual Try-On using "Nano Banana 3" (Placeholder/Mock)
-    Receives clothing image and user avatar.
-    Returns the processed image.
+    Real Virtual Try-On integration with Nano Banana API.
+    Forwards user images to the AI service and returns the result.
     """
     print(f"🍌 Virtual Try-On Request from {current_user.username}")
-    print(f"   Clothing: {clothing_image.filename}")
-    print(f"   Avatar: {avatar_image.filename}")
+    
+    # 1. Configuration - Get these from your .env file or AI Studio dashboard
+    NANO_BANANA_API_URL = os.getenv("NANO_BANANA_API_URL", "YOUR_ACTUAL_API_ENDPOINT_HERE")
+    NANO_BANANA_API_KEY = os.getenv("NANO_BANANA_API_KEY")
 
-    # Simulate processing delay
-    time.sleep(2) 
+    if not NANO_BANANA_API_URL or "YOUR_ACTUAL" in NANO_BANANA_API_URL:
+        print("❌ Error: Nano Banana API URL not configured")
+        raise HTTPException(status_code=500, detail="Server misconfiguration: Missing API URL")
 
-    # MOCK LOGIC: 
-    # In a real "Nano Banana 3" integration, we would:
-    # 1. Send clothing_image and avatar_image to Google's API
-    # 2. Get the result back
-    # 3. Return the result
-    
-    # For now, we'll just return the avatar image back as the 'result' 
-    # (Simulating that the user is now wearing the clothes... effectively just showing the user)
-    # Or to be more distinct, we return the clothing image. Let's return the clothing image to prove we got it.
-    
-    image_bytes = await clothing_image.read()
-    
-    return Response(content=image_bytes, media_type="image/jpeg")
+    try:
+        # 2. Read file contents into memory
+        clothing_bytes = await clothing_image.read()
+        avatar_bytes = await avatar_image.read()
+
+        # 3. Prepare the request to your AI Studio API
+        # We use a timeout of 60s because image generation can be slow
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            print("🚀 Sending images to Nano Banana API...")
+            
+            # Construct Multipart Form Data
+            # Adjust field names ('clothing', 'avatar') if your API expects specific names
+            files = {
+                'clothing_image': (clothing_image.filename, clothing_bytes, clothing_image.content_type),
+                'avatar_image': (avatar_image.filename, avatar_bytes, avatar_image.content_type)
+            }
+            
+            headers = {}
+            if NANO_BANANA_API_KEY:
+                headers["Authorization"] = f"Bearer {NANO_BANANA_API_KEY}"
+                # Or if it uses x-api-key:
+                # headers["x-api-key"] = NANO_BANANA_API_KEY
+
+            # 4. Make the call
+            response = await client.post(
+                NANO_BANANA_API_URL,
+                files=files,
+                headers=headers
+            )
+
+            # 5. Check response
+            if response.status_code != 200:
+                print(f"❌ AI API Error: {response.status_code} - {response.text}")
+                raise HTTPException(
+                    status_code=502, 
+                    detail=f"AI Processing Failed: {response.text[:100]}"
+                )
+
+            print("✅ Received result from AI")
+            
+            # 6. Return the generated image bytes directly
+            return Response(content=response.content, media_type="image/png")
+
+    except httpx.RequestError as e:
+        print(f"❌ Connection Error: {e}")
+        raise HTTPException(status_code=503, detail="AI Service Unavailable")
+    except Exception as e:
+        print(f"❌ Unexpected Error: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error during processing")
 
 if __name__ == "__main__":
     print("Starting Main API Server (HTTP-based MCP) at http://0.0.0.0:8000")

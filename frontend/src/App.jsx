@@ -172,6 +172,39 @@ const ChatApp = () => {
     }
   }
 
+  const [chatZoom, setChatZoom] = useState(1)
+  const [resultsZoom, setResultsZoom] = useState(1)
+  const chatRef = useRef(null)
+  const resultsRef = useRef(null)
+
+  // Handle pinch-to-zoom (wheel + ctrlKey)
+  useEffect(() => {
+    const handleZoom = (e, setZoom) => {
+      // ctrlKey + wheel is the standard for pinch gestures on trackpads
+      if (e.ctrlKey) {
+        e.preventDefault()
+        setZoom(prev => {
+          const newZoom = prev - e.deltaY * 0.01
+          return Math.min(Math.max(newZoom, 0.5), 2.5) // Limit zoom between 0.5x and 2.5x
+        })
+      }
+    }
+
+    const chatEl = chatRef.current
+    const resultsEl = resultsRef.current
+
+    const chatHandler = (e) => handleZoom(e, setChatZoom)
+    const resultsHandler = (e) => handleZoom(e, setResultsZoom)
+
+    if (chatEl) chatEl.addEventListener('wheel', chatHandler, { passive: false })
+    if (resultsEl) resultsEl.addEventListener('wheel', resultsHandler, { passive: false })
+
+    return () => {
+      if (chatEl) chatEl.removeEventListener('wheel', chatHandler)
+      if (resultsEl) resultsEl.removeEventListener('wheel', resultsHandler)
+    }
+  }, [results]) // Re-attach when results appear
+
   if (loading) return <div className="app">Loading...</div>;
   if (!user) return <Login />;
 
@@ -209,120 +242,125 @@ const ChatApp = () => {
           onDeleteConversation={handleDeleteConversation}
         />
 
-        {/* Chat Section */}
-        <div className="chat-section">
-          <div className="chat-container">
-            <div className="messages">
-              {messages.length === 0 && !currentConversationId && (
-                <div className="message assistant">
-                  <div className="message-content">
-                    <p>👋 Hi! I can help you find products on eBay and Amazon. What are you looking for?</p>
+        {/* Main Content Area */}
+        <div className="main-content">
+          {/* Chat Section */}
+          <div className="chat-section" ref={chatRef}>
+            <div className="chat-container" style={{ zoom: chatZoom }}>
+              <div className="messages">
+                {messages.length === 0 && !currentConversationId && (
+                  <div className="message assistant">
+                    <div className="message-content">
+                      <p>👋 Hi! I can help you find products on eBay and Amazon. What are you looking for?</p>
+                    </div>
                   </div>
-                </div>
-              )}
-              {messages.map((msg, index) => (
-                <div key={index} className={`message ${msg.role}`}>
-                  <div className="message-content">
-                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                )}
+                {messages.map((msg, index) => (
+                  <div key={index} className={`message ${msg.role}`}>
+                    <div className="message-content">
+                      <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    </div>
                   </div>
-                </div>
-              ))}
-              {isLoading && (
-                <div className="message assistant">
-                  <div className="message-content loading">
-                    <span className="dot"></span>
-                    <span className="dot"></span>
-                    <span className="dot"></span>
+                ))}
+                {isLoading && (
+                  <div className="message assistant">
+                    <div className="message-content loading">
+                      <span className="dot"></span>
+                      <span className="dot"></span>
+                      <span className="dot"></span>
+                    </div>
                   </div>
-                </div>
-              )}
-              <div ref={messagesEndRef} />
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+
+              <form onSubmit={sendMessage} className="input-form">
+                <input
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Type your message..."
+                  disabled={isLoading}
+                  className="message-input"
+                />
+                <button
+                  type="submit"
+                  disabled={isLoading || !input.trim()}
+                  className="send-button"
+                >
+                  Send
+                </button>
+              </form>
             </div>
-
-            <form onSubmit={sendMessage} className="input-form">
-              <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Type your message..."
-                disabled={isLoading}
-                className="message-input"
-              />
-              <button
-                type="submit"
-                disabled={isLoading || !input.trim()}
-                className="send-button"
-              >
-                Send
-              </button>
-            </form>
           </div>
+
+          {/* Results Section */}
+          {results && (
+            <div className="results-section" ref={resultsRef}>
+              <div style={{ zoom: resultsZoom }}>
+                <h2>Search Results</h2>
+
+                {/* eBay Results */}
+                {results.ebay && results.ebay.length > 0 && (
+                  <div className="marketplace-results">
+                    <h3>eBay</h3>
+                    <div className="products-grid">
+                      {results.ebay.map((product, index) => (
+                        <div key={index} className="product-card">
+                          {product.image_url && (
+                            <img src={product.image_url} alt={product.title} />
+                          )}
+                          <h4>{product.title}</h4>
+                          <p className="price">{product.price}</p>
+                          {product.condition && (
+                            <p className="condition">{product.condition}</p>
+                          )}
+                          <a
+                            href={product.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="view-button"
+                          >
+                            View on eBay
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Amazon Results */}
+                {results.amazon && results.amazon.length > 0 && (
+                  <div className="marketplace-results">
+                    <h3>Amazon</h3>
+                    <div className="products-grid">
+                      {results.amazon.map((product, index) => (
+                        <div key={index} className="product-card">
+                          {product.image_url && (
+                            <img src={product.image_url} alt={product.title} />
+                          )}
+                          <h4>{product.title}</h4>
+                          <p className="price">{product.price}</p>
+                          {product.rating && (
+                            <p className="rating">{product.rating}</p>
+                          )}
+                          <a
+                            href={product.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="view-button"
+                          >
+                            View on Amazon
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
-
-        {/* Results Section */}
-        {results && (
-          <div className="results-section">
-            <h2>Search Results</h2>
-
-            {/* eBay Results */}
-            {results.ebay && results.ebay.length > 0 && (
-              <div className="marketplace-results">
-                <h3>eBay</h3>
-                <div className="products-grid">
-                  {results.ebay.map((product, index) => (
-                    <div key={index} className="product-card">
-                      {product.image_url && (
-                        <img src={product.image_url} alt={product.title} />
-                      )}
-                      <h4>{product.title}</h4>
-                      <p className="price">{product.price}</p>
-                      {product.condition && (
-                        <p className="condition">{product.condition}</p>
-                      )}
-                      <a
-                        href={product.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="view-button"
-                      >
-                        View on eBay
-                      </a>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Amazon Results */}
-            {results.amazon && results.amazon.length > 0 && (
-              <div className="marketplace-results">
-                <h3>Amazon</h3>
-                <div className="products-grid">
-                  {results.amazon.map((product, index) => (
-                    <div key={index} className="product-card">
-                      {product.image_url && (
-                        <img src={product.image_url} alt={product.title} />
-                      )}
-                      <h4>{product.title}</h4>
-                      <p className="price">{product.price}</p>
-                      {product.rating && (
-                        <p className="rating">{product.rating}</p>
-                      )}
-                      <a
-                        href={product.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="view-button"
-                      >
-                        View on Amazon
-                      </a>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
       </div>
       <VirtualTryOn />
     </div>
