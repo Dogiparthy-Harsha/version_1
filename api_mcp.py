@@ -15,7 +15,7 @@ from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from openai import OpenAI
 from sqlalchemy.orm import Session
 
@@ -89,14 +89,16 @@ class Token(BaseModel):
 class ChatRequest(BaseModel):
     message: str
     conversation_id: Optional[int] = None
-    history: List[Dict[str, str]]
+    history: List[Dict[str, Any]]
+    image_data: Optional[str] = None  # Base64-encoded image
 
 class ChatResponse(BaseModel):
     type: str
     message: str
     conversation_id: int
-    history: List[Dict[str, str]]
+    history: List[Dict[str, Any]]
     results: Optional[Dict] = None
+    image_data: Optional[str] = None  # Echo back image if sent
 
 class ConversationResponse(BaseModel):
     id: int
@@ -170,12 +172,13 @@ def get_conversation_history(
         models.Chat.conversation_id == conversation_id
     ).order_by(models.Chat.timestamp.asc()).all()
     
-    # Include results if they exist
+    # Include results and image_data if they exist
     return [
         {
             "role": msg.role, 
             "content": msg.message,
-            "results": msg.results if msg.results else None
+            "results": msg.results if msg.results else None,
+            "image_data": msg.image_data if msg.image_data else None
         } 
         for msg in messages
     ]
@@ -232,11 +235,12 @@ async def handle_chat(
         conversation_id = conversation.id
 
     # Save User Message to DB
-    if request.message:
+    if request.message or request.image_data:
         user_msg = models.Chat(
             conversation_id=conversation_id, 
-            message=request.message, 
-            role="user"
+            message=request.message or "", 
+            role="user",
+            image_data=request.image_data
         )
         db.add(user_msg)
         db.commit()
@@ -272,7 +276,11 @@ async def handle_chat(
         "Do NOT refuse to search for a product just because you think it is unreleased. "
         "Instead, gather the necessary details and generate the 'FINAL_QUERY' so that our "
         "real-time verification agent can check its actual availability. "
-        "Let the verification tool be the judge of whether a product exists."
+        "Let the verification tool be the judge of whether a product exists. "
+        "If the user provides an image, analyze it to identify the item "
+        "(brand, model, color, condition, material, style). Combine visual details with "
+        "the user's text message to generate the most accurate search query. "
+        "Describe what you see in the image before asking follow-up questions."
     )
     
     # Enhance system prompt with RAG context if available
@@ -283,9 +291,11 @@ async def handle_chat(
             f"{rag_context}\n"
             f"=== END OF MEMORY ===\n\n"
             f"IMPORTANT: The above is YOUR memory of this user's past searches and preferences. "
-            f"You DO have access to their search history. Use it to provide personalized recommendations. "
-            f"For example, if they previously searched for iPhones, you can say "
-            f"'I see you searched for iPhone 17 Pro before. Looking for something similar?'"
+            f"ONLY reference this memory when it is DIRECTLY relevant to what the user is "
+            f"currently asking about. Do NOT bring up unrelated past searches. "
+            f"For example, if they are searching for a bag, do NOT mention their past phone searches. "
+            f"Only mention past history if it helps refine the CURRENT search "
+            f"(e.g., 'Last time you looked for a similar bag in black, want the same color?')."
         )
     
     welcome_message = f"Greetings {current_user.username}, I will help you find the best deals on eBay and Amazon. What are you looking for today?"
@@ -314,7 +324,22 @@ async def handle_chat(
 
     # Prepare chat history
     chat_history = request.history
-    chat_history.append({"role": "user", "content": request.message})
+    
+    # Build the user message content — multimodal if image is present
+    if request.image_data:
+        # Multimodal message: list of content parts (text + image)
+        user_content = []
+        if request.message:
+            user_content.append({"type": "text", "text": request.message})
+        user_content.append({
+            "type": "image_url",
+            "image_url": {
+                "url": f"data:image/jpeg;base64,{request.image_data}"
+            }
+        })
+        chat_history.append({"role": "user", "content": user_content})
+    else:
+        chat_history.append({"role": "user", "content": request.message})
     
     # Prepend system prompt to ensure AI always knows the context and date
     messages_for_ai = [{"role": "system", "content": system_prompt}] + chat_history

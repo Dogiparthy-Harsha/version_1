@@ -30,6 +30,7 @@ class Chat(Base):
     conversation_id = Column(Integer, ForeignKey("conversations.id"))
     role = Column(String)  # 'user' or 'assistant'
     message = Column(Text)
+    image_data = Column(Text, nullable=True)  # Base64-encoded image data
     results = Column(JSON, nullable=True)  # Store search results as JSON
     timestamp = Column(DateTime, default=datetime.utcnow)
 

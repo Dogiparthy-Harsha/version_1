@@ -18,7 +18,10 @@ const ChatApp = () => {
   const [results, setResults] = useState(null)
   const [conversations, setConversations] = useState([])
   const [currentConversationId, setCurrentConversationId] = useState(null)
+  const [selectedImage, setSelectedImage] = useState(null)   // File object
+  const [imagePreview, setImagePreview] = useState(null)      // data URL for preview
   const messagesEndRef = useRef(null)
+  const fileInputRef = useRef(null)
 
   // Auto-scroll to bottom when messages change
   const scrollToBottom = () => {
@@ -111,32 +114,64 @@ const ChatApp = () => {
     }
   };
 
+  // Handle image file selection
+  const handleImageSelect = (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    setSelectedImage(file)
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      setImagePreview(reader.result)  // full data URL for preview
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const removeSelectedImage = () => {
+    setSelectedImage(null)
+    setImagePreview(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
   const sendMessage = async (e) => {
     e.preventDefault()
-    if (!input.trim() || isLoading) return
+    if ((!input.trim() && !selectedImage) || isLoading) return
 
     const userMessage = input.trim()
+    const currentImagePreview = imagePreview          // capture before clearing
+    const currentImageBase64 = imagePreview
+      ? imagePreview.split(',')[1]                    // strip data:...;base64, prefix
+      : null
     setInput('')
+    removeSelectedImage()
     setIsLoading(true)
 
-    // Add user message to chat immediately
-    const newMessages = [...messages, { role: 'user', content: userMessage }]
+    // Add user message to chat immediately (with image if present)
+    const userMsgObj = { role: 'user', content: userMessage }
+    if (currentImagePreview) {
+      userMsgObj.image_data = currentImageBase64
+    }
+    const newMessages = [...messages, userMsgObj]
     setMessages(newMessages)
 
     try {
-      // Prepare history for API (exclude system messages if we were doing that on frontend, but we aren't)
+      // Prepare history for API
       const history = newMessages.map(msg => ({
         role: msg.role,
         content: msg.content
       }))
 
+      const payload = {
+        message: userMessage,
+        conversation_id: currentConversationId,
+        history: history.slice(0, -1) // Exclude the message we just added
+      }
+      if (currentImageBase64) {
+        payload.image_data = currentImageBase64
+      }
+
       const response = await axios.post(
         `${API_URL}/chat`,
-        {
-          message: userMessage,
-          conversation_id: currentConversationId,
-          history: history.slice(0, -1) // Exclude the message we just added
-        },
+        payload,
         { headers: { Authorization: `Bearer ${token}` } }
       )
 
@@ -258,7 +293,14 @@ const ChatApp = () => {
                 {messages.map((msg, index) => (
                   <div key={index} className={`message ${msg.role}`}>
                     <div className="message-content">
-                      <ReactMarkdown>{msg.content}</ReactMarkdown>
+                      {msg.image_data && (
+                        <img
+                          src={`data:image/jpeg;base64,${msg.image_data}`}
+                          alt="Uploaded"
+                          className="message-image"
+                        />
+                      )}
+                      {msg.content && <ReactMarkdown>{msg.content}</ReactMarkdown>}
                     </div>
                   </div>
                 ))}
@@ -274,7 +316,32 @@ const ChatApp = () => {
                 <div ref={messagesEndRef} />
               </div>
 
+              {/* Image preview strip */}
+              {imagePreview && (
+                <div className="image-preview-container">
+                  <img src={imagePreview} alt="Preview" className="image-preview-thumb" />
+                  <button className="image-preview-remove" onClick={removeSelectedImage}>✕</button>
+                </div>
+              )}
+
               <form onSubmit={sendMessage} className="input-form">
+                {/* Hidden file input */}
+                <input
+                  type="file"
+                  accept="image/*"
+                  ref={fileInputRef}
+                  onChange={handleImageSelect}
+                  style={{ display: 'none' }}
+                />
+                <button
+                  type="button"
+                  className="image-upload-btn"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isLoading}
+                  title="Attach an image"
+                >
+                  📎
+                </button>
                 <input
                   type="text"
                   value={input}
@@ -285,7 +352,7 @@ const ChatApp = () => {
                 />
                 <button
                   type="submit"
-                  disabled={isLoading || !input.trim()}
+                  disabled={isLoading || (!input.trim() && !selectedImage)}
                   className="send-button"
                 >
                   Send
