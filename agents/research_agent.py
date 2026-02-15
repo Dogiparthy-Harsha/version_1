@@ -154,18 +154,32 @@ Product being researched: {product_name}
 Web search results:
 {search_context}
 
-IMPORTANT RULES:
-1. TRUST THE SEARCH RESULTS ABOVE YOUR INTERNAL KNOWLEDGE. If the search results show "Buy", "Shop", "Price", or "In Stock", the product EXISTS.
-2. A product "exists" if it has been officially RELEASED and is currently available for purchase.
-3. If a product is "rumored", "expected", "upcoming", or has a future release date, it does NOT exist yet.
-4. If the release date is in the future (after {current_date}), mark exists=false.
-5. If the product was released in the past or present, mark exists=true.
+CRITICAL RULES (follow in order):
+
+1. DATE COMPARISON IS YOUR PRIMARY TOOL:
+   - If you find a release date for this SPECIFIC product, compare it to today ({current_date}).
+   - If the release date is ON or BEFORE today, the product IS RELEASED and EXISTS. Set exists=true, release_status="available".
+   - If the release date is AFTER today, it is NOT YET RELEASED. Set exists=false, release_status="upcoming".
+
+2. IGNORE SUCCESSOR/NEXT-GEN PRODUCTS:
+   - Search results often mention FUTURE models (e.g., "iPhone 18" in an article about "iPhone 17").
+   - ONLY consider information about the EXACT product being researched: "{product_name}".
+   - If a sentence says "new models not expected until [date]", that refers to the NEXT generation, NOT the product being researched.
+   - Do NOT confuse the product's release date with the release date of its successor.
+
+3. TRUST SHOPPING SIGNALS:
+   - If search results contain "Buy", "Shop", "Price", "$", "In Stock", "Add to Cart", or retailer names (Amazon, Best Buy, eBay, etc.), the product EXISTS and is available.
+   - These signals override any ambiguity.
+
+4. If a product is only "rumored", "leaked", "expected", or has NO confirmed release date, set exists=false.
+
+5. When in doubt and no clear signals exist, default to exists=true to avoid blocking valid searches.
 
 Based on these search results, provide a JSON response with:
-1. "exists": true/false - Is this product CURRENTLY available for purchase (not just announced)?
+1. "exists": true/false - Is this product currently available for purchase?
 2. "info": A brief 1-2 sentence summary. If it doesn't exist yet, mention when it's expected.
-3. "confidence": "high"/"medium"/"low" - How confident are you in this assessment?
-4. "release_status": "available"/"upcoming"/"rumored"/"unknown" - Current status of the product
+3. "confidence": "high"/"medium"/"low" - How confident are you?
+4. "release_status": "available"/"upcoming"/"rumored"/"unknown" - Current status
 
 Respond ONLY with valid JSON, no other text.
 """

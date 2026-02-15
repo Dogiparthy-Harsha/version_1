@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import axios from 'axios'
 import ReactMarkdown from 'react-markdown'
 import { AuthProvider, useAuth } from './context/AuthContext'
@@ -20,8 +20,95 @@ const ChatApp = () => {
   const [currentConversationId, setCurrentConversationId] = useState(null)
   const [selectedImage, setSelectedImage] = useState(null)   // File object
   const [imagePreview, setImagePreview] = useState(null)      // data URL for preview
+  const [isListening, setIsListening] = useState(false)
   const messagesEndRef = useRef(null)
   const fileInputRef = useRef(null)
+  const recognitionRef = useRef(null)
+
+  // Voice input
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+  const speechSupported = !!SpeechRecognition
+
+  const toggleVoiceInput = useCallback(() => {
+    if (!speechSupported) return;
+
+    // STOP if already listening
+    if (isListening) {
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop(); } catch (e) { }
+        recognitionRef.current = null;
+      }
+      setIsListening(false);
+      return;
+    }
+
+    // START listening
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'en-US';
+
+      // CRITICAL FIX: continuous=true prevents immediate cutoff
+      recognition.continuous = true;
+      recognition.interimResults = true;
+
+      recognition.onstart = () => {
+        setIsListening(true);
+      };
+
+      recognition.onresult = (event) => {
+        let interim = '';
+        let final = '';
+        let hasFinal = false;
+
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            final += transcript;
+            hasFinal = true;
+          } else {
+            interim += transcript;
+          }
+        }
+
+        // Update input state safely
+        if (final || interim) {
+          setInput(prev => {
+            const currentVal = prev || '';
+            // Only append finalized text to avoid duplication issues
+            if (hasFinal) return currentVal + (currentVal ? ' ' : '') + final;
+            return currentVal;
+          });
+        }
+
+        // CRITICAL FIX: Manually stop as soon as user finishes a sentence
+        if (hasFinal) {
+          recognition.stop();
+          setIsListening(false);
+          recognitionRef.current = null;
+        }
+      };
+
+      recognition.onend = () => {
+        // No auto-restart here
+        setIsListening(false);
+        recognitionRef.current = null;
+      };
+
+      recognition.onerror = (event) => {
+        if (event.error !== 'no-speech') {
+          setIsListening(false);
+          recognitionRef.current = null;
+        }
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+
+    } catch (error) {
+      console.error("Failed to start speech recognition:", error);
+      setIsListening(false);
+    }
+  }, [isListening, speechSupported])
 
   // Auto-scroll to bottom when messages change
   const scrollToBottom = () => {
@@ -346,10 +433,27 @@ const ChatApp = () => {
                   type="text"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder="Type your message..."
+                  placeholder={isListening ? 'Listening...' : 'Type your message...'}
                   disabled={isLoading}
                   className="message-input"
                 />
+                {speechSupported && (
+                  <button
+                    type="button"
+                    className={`voice-btn${isListening ? ' voice-btn-active' : ''}`}
+                    onClick={toggleVoiceInput}
+                    disabled={isLoading}
+                    title={isListening ? 'Stop listening' : 'Voice input'}
+                  >
+                    🎤
+                    {isListening && (
+                      <span className="voice-globe">
+                        <span className="voice-globe-ring"></span>
+                        <span className="voice-globe-core"></span>
+                      </span>
+                    )}
+                  </button>
+                )}
                 <button
                   type="submit"
                   disabled={isLoading || (!input.trim() && !selectedImage)}
