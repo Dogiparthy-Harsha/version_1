@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './context/AuthContext'
 import Login from './components/Login'
 import Sidebar from './components/Sidebar'
 import VirtualTryOn from './components/VirtualTryOn'
+import A2UIRenderer from './components/A2UIRenderer';
 import './App.css'
 
 const API_URL = 'http://127.0.0.1:8000'
@@ -265,7 +266,8 @@ const ChatApp = () => {
       // Add assistant response
       setMessages([...newMessages, {
         role: 'assistant',
-        content: response.data.message
+        content: response.data.message,
+        a2ui_content: response.data.a2ui_content
       }])
 
       // Update conversation ID if it was a new chat
@@ -298,6 +300,14 @@ const ChatApp = () => {
   const [resultsZoom, setResultsZoom] = useState(1)
   const chatRef = useRef(null)
   const resultsRef = useRef(null)
+
+  // A2UI Action Handler
+  const handleA2UIAction = (actionId, payload) => {
+    console.log(`Action: ${actionId}`, payload);
+    if (actionId === 'view_deal' && payload?.url) {
+      window.open(payload.url, '_blank', 'noopener,noreferrer');
+    }
+  };
 
   // Handle pinch-to-zoom (wheel + ctrlKey)
   useEffect(() => {
@@ -388,6 +398,7 @@ const ChatApp = () => {
                         />
                       )}
                       {msg.content && <ReactMarkdown>{msg.content}</ReactMarkdown>}
+                      {msg.a2ui_content && <A2UIRenderer content={msg.a2ui_content} onAction={handleA2UIAction} />}
                     </div>
                   </div>
                 ))}
@@ -465,72 +476,7 @@ const ChatApp = () => {
             </div>
           </div>
 
-          {/* Results Section */}
-          {results && (
-            <div className="results-section" ref={resultsRef}>
-              <div style={{ zoom: resultsZoom }}>
-                <h2>Search Results</h2>
 
-                {/* eBay Results */}
-                {results.ebay && results.ebay.length > 0 && (
-                  <div className="marketplace-results">
-                    <h3>eBay</h3>
-                    <div className="products-grid">
-                      {results.ebay.map((product, index) => (
-                        <div key={index} className="product-card">
-                          {product.image_url && (
-                            <img src={product.image_url} alt={product.title} />
-                          )}
-                          <h4>{product.title}</h4>
-                          <p className="price">{product.price}</p>
-                          {product.condition && (
-                            <p className="condition">{product.condition}</p>
-                          )}
-                          <a
-                            href={product.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="view-button"
-                          >
-                            View on eBay
-                          </a>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Amazon Results */}
-                {results.amazon && results.amazon.length > 0 && (
-                  <div className="marketplace-results">
-                    <h3>Amazon</h3>
-                    <div className="products-grid">
-                      {results.amazon.map((product, index) => (
-                        <div key={index} className="product-card">
-                          {product.image_url && (
-                            <img src={product.image_url} alt={product.title} />
-                          )}
-                          <h4>{product.title}</h4>
-                          <p className="price">{product.price}</p>
-                          {product.rating && (
-                            <p className="rating">{product.rating}</p>
-                          )}
-                          <a
-                            href={product.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="view-button"
-                          >
-                            View on Amazon
-                          </a>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
         </div>
       </div>
       <VirtualTryOn />

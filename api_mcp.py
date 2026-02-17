@@ -27,7 +27,10 @@ load_dotenv()
 import models
 import auth
 from database import engine, get_db
+from database import engine, get_db
 from embeddings import EmbeddingService
+from a2ui_models import A2UIMessage, Card, ListComponent, Image, Button, Text, Box
+from a2ui_models import A2UIMessage, Card, ListComponent, Image, Button, Text, Box
 
 # Create Tables
 models.Base.metadata.create_all(bind=engine)
@@ -98,6 +101,8 @@ class ChatResponse(BaseModel):
     conversation_id: int
     history: List[Dict[str, Any]]
     results: Optional[Dict] = None
+    a2ui_content: Optional[A2UIMessage] = None
+
     image_data: Optional[str] = None  # Echo back image if sent
 
 class ConversationResponse(BaseModel):
@@ -154,6 +159,59 @@ def get_conversations(
     ).order_by(models.Conversation.created_at.desc()).all()
     return conversations
 
+# --- Helper for A2UI Generation ---
+
+def build_a2ui_from_results(results: Dict) -> Optional[A2UIMessage]:
+    if not results:
+        return None
+        
+    ebay_results = results.get("ebay", [])
+    amazon_results = results.get("amazon", [])
+    
+    if not ebay_results and not amazon_results:
+        return None
+        
+    try:
+        a2ui_cards = []
+        
+        def create_card(item, source):
+            # Robustly handle potential missing fields
+            title = item.get('title') or "Unknown Product"
+            price = item.get('price') or "Price not available"
+            image_url = item.get('image_url') # FIXED: Was item.get('image')
+            item_url = item.get('url') or "#"
+            
+            return Card(
+                type="card",
+                title=title[:80] + ("..." if len(title) > 80 else ""),
+                subtitle=f"{source} • {price}",
+                image=Image(src=image_url, alt=title, height="140px") if image_url else None,
+                actions=[
+                    Button(
+                        label="View Deal", 
+                        action_id="view_deal", 
+                        variant="primary",
+                        payload={"url": item_url}
+                    )
+                ]
+            )
+
+        for item in ebay_results:
+            a2ui_cards.append(create_card(item, "eBay"))
+        
+        for item in amazon_results:
+            a2ui_cards.append(create_card(item, "Amazon"))
+            
+        return A2UIMessage(
+            root=ListComponent(
+                items=a2ui_cards,
+                orientation="vertical"
+            )
+        )
+    except Exception as e:
+        print(f"⚠️ Error constructing A2UI message: {e}")
+        return None
+
 @app.get("/conversations/{conversation_id}", response_model=List[Dict])
 def get_conversation_history(
     conversation_id: int,
@@ -172,12 +230,13 @@ def get_conversation_history(
         models.Chat.conversation_id == conversation_id
     ).order_by(models.Chat.timestamp.asc()).all()
     
-    # Include results and image_data if they exist
+    # Include results, image_data, and generated A2UI content
     return [
         {
             "role": msg.role, 
             "content": msg.message,
             "results": msg.results if msg.results else None,
+            "a2ui_content": build_a2ui_from_results(msg.results) if msg.results else None,
             "image_data": msg.image_data if msg.image_data else None
         } 
         for msg in messages
@@ -268,10 +327,10 @@ async def handle_chat(
         f"You are a helpful search assistant for eBay and Amazon. Today's date is {current_date}. "
         "Your goal is to ask the user 1-2 follow-up questions to get key details "
         "(like model, color, size, condition, storage, or budget) to refine their search. "
-        "Once you have enough details, your *very last* message must ONLY be the "
         "final search query, prefixed with 'FINAL_QUERY:'. "
         "For the FINAL_QUERY, include the product model and storage/size, but you may include color and condition. "
-        "For example: 'FINAL_QUERY: iPhone 15 Pro Max 256GB blue new' or 'FINAL_QUERY: Samsung S24 Ultra 512GB'. "
+        "It is MANDATORY to include the current date in the FINAL_QUERY so the research agent knows when to check availability. "
+        "For example: 'FINAL_QUERY: iPhone 15 Pro Max 256GB blue new on February 16, 2026' or 'FINAL_QUERY: Samsung S24 Ultra 512GB on February 16, 2026'. "
         "IMPORTANT: Your training data regarding product release dates may be outdated. "
         "Do NOT refuse to search for a product just because you think it is unreleased. "
         "Instead, gather the necessary details and generate the 'FINAL_QUERY' so that our "
@@ -379,11 +438,12 @@ async def handle_chat(
         verification_query = ' '.join(verification_query.split())
         
         # --- Call Research Agent (HTTP) ---
-        print(f"🔍 Research Agent (HTTP): Verifying '{verification_query}'...")
+        # The Research Agent NEEDS the date to check availability
+        print(f"🔍 Research Agent (HTTP): Verifying '{final_query}'...")
         try:
             research_response = await http_client.post(
                 f"{RESEARCH_AGENT_URL}/verify_product",
-                json={"product_name": verification_query}
+                json={"product_name": final_query} # Send full query with date
             )
             verification = research_response.json()
             
@@ -427,14 +487,17 @@ async def handle_chat(
             print(f"⚠️  Research agent error: {e}")
         
         # --- Search eBay and Amazon (HTTP) ---
-        print(f"🔎 Searching eBay and Amazon (HTTP) for: {final_query}")
+        # Strip the date for commerce sites (they don't need "on February 16, 2026")
+        # Regex to remove " on <Month> <Day>, <Year>"
+        commerce_query = re.sub(r' on [A-Za-z]+ \d{1,2}, \d{4}', '', final_query, flags=re.IGNORECASE).strip()
+        print(f"🔎 Searching eBay and Amazon (HTTP) for: {commerce_query}")
         
         # Search eBay
         ebay_results = []
         try:
             ebay_response = await http_client.post(
                 f"{EBAY_AGENT_URL}/search",
-                json={"query": final_query, "limit": 4}
+                json={"query": commerce_query, "limit": 4}
             )
             ebay_data = ebay_response.json()
             ebay_results = ebay_data.get("results", [])
@@ -447,7 +510,7 @@ async def handle_chat(
         try:
             amazon_response = await http_client.post(
                 f"{AMAZON_AGENT_URL}/search",
-                json={"query": final_query}
+                json={"query": commerce_query}
             )
             amazon_data = amazon_response.json()
             amazon_results = amazon_data.get("results", [])
@@ -458,6 +521,52 @@ async def handle_chat(
         # Create user-friendly message for results
         results_message = f"Great! I searched both eBay and Amazon for: '{final_query}'"
         results_data = {"ebay": ebay_results, "amazon": amazon_results}
+
+        # --- Generate A2UI Content ---
+        a2ui_message = None
+        if ebay_results or amazon_results:
+            try:
+                a2ui_cards = []
+                
+                def create_card(item, source):
+                    # Robustly handle potential missing fields
+                    title = item.get('title') or "Unknown Product"
+                    price = item.get('price') or "Price not available"
+                    image_url = item.get('image_url') # FIXED: Was item.get('image')
+                    item_url = item.get('url') or "#"
+                    
+                    return Card(
+                        type="card",
+                        title=title[:80] + ("..." if len(title) > 80 else ""),  # Truncate long titles
+                        subtitle=f"{source} • {price}",
+                        image=Image(src=image_url, alt=title, height="140px") if image_url else None,
+                        actions=[
+                            Button(
+                                label="View Deal", 
+                                action_id="view_deal", 
+                                variant="primary",
+                                payload={"url": item_url}
+                            )
+                        ]
+                    )
+
+                # Add eBay items
+                for item in ebay_results:
+                    a2ui_cards.append(create_card(item, "eBay"))
+                
+                # Add Amazon items
+                for item in amazon_results:
+                    a2ui_cards.append(create_card(item, "Amazon"))
+                
+                if a2ui_cards:
+                    a2ui_message = A2UIMessage(
+                        root=ListComponent(
+                            items=a2ui_cards,
+                            orientation="vertical"
+                        )
+                    )
+            except Exception as e:
+                print(f"⚠️ Error constructing A2UI message: {e}")
         
         # Save this message AND results to DB
         chat_history.append({"role": "assistant", "content": results_message})
@@ -500,7 +609,8 @@ async def handle_chat(
             message=results_message,
             conversation_id=conversation_id,
             history=chat_history,
-            results=results_data
+            results=results_data,
+            a2ui_content=a2ui_message
         )
         
     else:
