@@ -6,6 +6,7 @@ import Login from './components/Login'
 import Sidebar from './components/Sidebar'
 import VirtualTryOn from './components/VirtualTryOn'
 import A2UIRenderer from './components/A2UIRenderer';
+import VisionClaw from './components/VisionClaw';
 import './App.css'
 
 const API_URL = 'http://127.0.0.1:8000'
@@ -22,6 +23,7 @@ const ChatApp = () => {
   const [selectedImage, setSelectedImage] = useState(null)   // File object
   const [imagePreview, setImagePreview] = useState(null)      // data URL for preview
   const [isListening, setIsListening] = useState(false)
+  const [showVision, setShowVision] = useState(false) // New state for Vision Claw
   const messagesEndRef = useRef(null)
   const fileInputRef = useRef(null)
   const recognitionRef = useRef(null)
@@ -296,6 +298,74 @@ const ChatApp = () => {
     }
   }
 
+  // Handle Vision Claw Capture
+  const handleVisionCapture = async ({ image, text }) => {
+    setShowVision(false);
+
+    // Default text if empty
+    const userMessage = text || "What is this?";
+
+    setIsLoading(true);
+
+    // Add user message to UI
+    const newMessages = [...messages, {
+      role: 'user',
+      content: userMessage,
+      image_data: image
+    }];
+    setMessages(newMessages);
+
+    try {
+      // Prepare history
+      const history = newMessages.map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }));
+
+      const payload = {
+        message: userMessage,
+        conversation_id: currentConversationId,
+        history: history.slice(0, -1),
+        image_data: image
+      };
+
+      const response = await axios.post(
+        `${API_URL}/chat`,
+        payload,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      // Add assistant response
+      setMessages([...newMessages, {
+        role: 'assistant',
+        content: response.data.message,
+        a2ui_content: response.data.a2ui_content
+      }]);
+
+      if (!currentConversationId && response.data.conversation_id) {
+        setCurrentConversationId(response.data.conversation_id);
+        fetchConversations();
+      }
+
+      if (response.data.type === 'results' && response.data.results) {
+        setResults(response.data.results);
+      }
+
+    } catch (error) {
+      console.error('Error sending vision message:', error)
+      if (error.response?.status === 401) {
+        logout();
+      } else {
+        setMessages([...newMessages, {
+          role: 'assistant',
+          content: 'Sorry, I encountered an error checking that image.'
+        }]);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const [chatZoom, setChatZoom] = useState(1)
   const [resultsZoom, setResultsZoom] = useState(1)
   const chatRef = useRef(null)
@@ -440,6 +510,23 @@ const ChatApp = () => {
                 >
                   📎
                 </button>
+                <button
+                  type="button"
+                  className="vision-btn"
+                  onClick={() => setShowVision(true)}
+                  disabled={isLoading}
+                  title="Vision Mode (Camera)"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    fontSize: '1.2rem',
+                    cursor: 'pointer',
+                    marginRight: '8px',
+                    opacity: isLoading ? 0.5 : 1
+                  }}
+                >
+                  📷
+                </button>
                 <input
                   type="text"
                   value={input}
@@ -475,10 +562,17 @@ const ChatApp = () => {
               </form>
             </div>
           </div>
-
-
         </div>
       </div>
+
+      {/* Vision Claw Overlay */}
+      {showVision && (
+        <VisionClaw
+          onClose={() => setShowVision(false)}
+          onCapture={handleVisionCapture}
+        />
+      )}
+
       <VirtualTryOn />
     </div>
   )

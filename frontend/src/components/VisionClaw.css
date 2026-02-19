@@ -1,0 +1,147 @@
+.vision-claw-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: #000;
+    z-index: 2000;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.vision-claw-container {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
+
+.video-wrapper {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    /* Crop video to fill if needed */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: #000;
+}
+
+.vision-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    /* Fill the screen like a native camera app */
+}
+
+.vision-close-btn {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: rgba(0, 0, 0, 0.4);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+    z-index: 2001;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.vision-controls {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    padding: 30px 20px 50px;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 2001;
+}
+
+.vision-mic-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    padding: 10px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    backdrop-filter: blur(10px);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.vision-mic-btn.listening {
+    background: rgba(255, 59, 48, 0.8);
+    /* Red when recording */
+    border-color: transparent;
+}
+
+.vision-capture-btn {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    border: 4px solid white;
+    background: transparent;
+    padding: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.1s;
+}
+
+.vision-capture-btn:active {
+    transform: scale(0.95);
+}
+
+.shutter-inner {
+    width: 100%;
+    height: 100%;
+    background: white;
+    border-radius: 50%;
+}
+
+.vision-spacers {
+    width: 80px;
+    /* Balance the mic button */
+}
+
+.vision-transcript-overlay {
+    position: absolute;
+    bottom: 140px;
+    left: 20px;
+    right: 20px;
+    text-align: center;
+    color: white;
+    font-size: 18px;
+    font-weight: 500;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+    pointer-events: none;
+}
+
+.vision-instruction {
+    position: absolute;
+    top: 80px;
+    width: 100%;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 14px;
+    pointer-events: none;
+}
+
+.vision-error {
+    color: white;
+    text-align: center;
+    padding: 2rem;
+}
