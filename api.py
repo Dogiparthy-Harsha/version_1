@@ -75,12 +75,16 @@ class ChatRequest(BaseModel):
     history: List[Dict[str, str]]
 
 class ChatResponse(BaseModel):
-    type: str
+    type: str # "question", "results", "error"
     message: str
     history: List[Dict[str, str]]
     results: Optional[Dict] = None
 
-# --- API Endpoint ---
+class VisionChatRequest(BaseModel):
+    image_base64: str
+    voice_text: str
+
+# --- API Endpoints ---
 # --- API Endpoint ---
 @app.post("/chat", response_model=ChatResponse)
 async def handle_chat(request: ChatRequest):
@@ -213,7 +217,93 @@ async def handle_chat(request: ChatRequest):
             message=ai_message,
             history=chat_history
         )
-# --- Uvicorn server startup (for running this file directly) ---
+
+# --- VISION AND VOICE ENDPOINT (OpenClaw Style) ---
+@app.post("/vision-chat", response_model=ChatResponse)
+async def handle_vision_chat(request: VisionChatRequest):
+    print(f"👁️ Vision Request Received: '{request.voice_text}'")
+    
+    # 1. System Prompt matching OpenClaw's persona + our search logic
+    system_prompt = (
+        "You are an embodied AI assistant integrated into a pair of smart glasses. "
+        "You can see what the user sees through their camera and hear what they say. "
+        "Your role is to understand their voice request in the context of the image provided. "
+        "If they ask to buy, identify, or find the object they are pointing at or looking at, "
+        "you must analyze the image, figure out exactly what the object is, and ask 1-2 follow-up questions "
+        "to refine a product search (like model, size, color). "
+        "Once you have enough details, your *very last* message must ONLY be the "
+        "final search query, prefixed with 'FINAL_QUERY:'. "
+        "For example: 'FINAL_QUERY: Apple Watch Series 9 Midnight 45mm new'."
+    )
+    
+    # 2. Build Multimodal Content for OpenRouter / Gemini
+    # Note: OpenRouter supports multimodal image inputs using OpenAI format.
+    try:
+        response = ai_client.chat.completions.create(
+            model="google/gemini-2.5-flash-lite", 
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": [
+                    {
+                        "type": "text",
+                        "text": f"User's Voice Command: {request.voice_text}"
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/jpeg;base64,{request.image_base64}"
+                        }
+                    }
+                ]}
+            ]
+        )
+        ai_message = response.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"✗ Error communicating with multimodal AI: {e}")
+        return ChatResponse(type="error", message="Failed to process image and voice.", history=[])
+        
+    # 3. Handle the response (similar to text chat)
+    if ai_message.startswith("FINAL_QUERY:"):
+        final_query = ai_message.replace("FINAL_QUERY:", "").strip()
+        print(f"🔎 Vision Agent Initiating Search for: {final_query}")
+        
+        ebay_data = ebay.search_items(final_query, limit=4)
+        amazon_data = amazon.search_items(final_query)
+        
+        ebay_results = []
+        if ebay_data and "itemSummaries" in ebay_data:
+            for item in ebay_data["itemSummaries"][:4]:
+                ebay_results.append({
+                    "title": item.get("title"),
+                    "price": f"{item.get('price', {}).get('value')} {item.get('price', {}).get('currency')}",
+                    "url": item.get("itemWebUrl"),
+                    "image_url": item.get("image", {}).get("imageUrl")
+                })
+                
+        amazon_results = []
+        if amazon_data and "search_results" in amazon_data:
+            for item in amazon_data["search_results"][:4]:
+                amazon_results.append({
+                    "title": item.get("title"),
+                    "price": item.get("price", {}).get("raw"),
+                    "url": item.get("link"),
+                    "image_url": item.get("image")
+                })
+
+        return ChatResponse(
+            type="results",
+            message=f"I've found information about the '{final_query}' you are looking at.",
+            history=[],
+            results={"ebay": ebay_results, "amazon": amazon_results}
+        )
+    else:
+        # It's a follow-up question based on the image
+        return ChatResponse(
+            type="question",
+            message=ai_message,
+            history=[]
+        )
+
 if __name__ == "__main__":
     
     print("Starting backend API server at http://127.0.0.1:8000")
